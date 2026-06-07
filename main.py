@@ -67,9 +67,14 @@ def get_high_low(df, start_date, mode="high"):
     if filtered.empty:
         filtered = df.tail(250)
     if mode == "high":
-        return float(filtered["High"].max())
+return float(
+    pd.Series(filtered["High"]).max()
+)
     else:
-        return float(filtered["Low"].min())
+close_series = pd.Series(df["Close"]).squeeze()
+high_series = pd.Series(df["High"]).squeeze()
+low_series = pd.Series(df["Low"]).squeeze()
+volume_series = pd.Series(df["Volume"]).squeeze()
 # =========================
 # 技術分析
 # =========================
@@ -97,10 +102,10 @@ def analyze_stock(row):
         )
         if df.empty:
             return None
-        close_series = df["Close"].squeeze()
-        high_series = df["High"].squeeze()
-        low_series = df["Low"].squeeze()
-        volume_series = df["Volume"].squeeze()
+close_series = pd.Series(df["Close"]).squeeze()
+high_series = pd.Series(df["High"]).squeeze()
+low_series = pd.Series(df["Low"]).squeeze()
+volume_series = pd.Series(df["Volume"]).squeeze()
         # =========================
         # 均線
         # =========================
@@ -142,8 +147,9 @@ def analyze_stock(row):
             volume_range = df[df.index >= high_date]
         else:
             volume_range = df.tail(250)
-        max_volume = float(
-            volume_range["Volume"].max()
+max_volume = float(
+    pd.Series(volume_range["Volume"]).max()
+)
         )
         # =========================
         # 買點
