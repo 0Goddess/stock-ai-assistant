@@ -102,10 +102,10 @@ def analyze_stock(row):
         )
         if df.empty:
             return None
-close_series = pd.Series(df["Close"]).squeeze()
-high_series = pd.Series(df["High"]).squeeze()
-low_series = pd.Series(df["Low"]).squeeze()
-volume_series = pd.Series(df["Volume"]).squeeze()
+        close_series = pd.Series(df["Close"]).squeeze()
+        high_series = pd.Series(df["High"]).squeeze()
+        low_series = pd.Series(df["Low"]).squeeze()
+        volume_series = pd.Series(df["Volume"]).squeeze()
         # =========================
         # 均線
         # =========================
