@@ -1,7 +1,6 @@
 import os
 import json
 import requests
-import pandas as pd
 import yfinance as yf
 
 from ta.trend import MACD
@@ -107,7 +106,7 @@ def analyze_stock(stock_id):
             return f"\n【{stock_id}】資料不足\n"
 
         # =========================
-        # 修正欄位格式
+        # 轉 Series
         # =========================
         close_series = df["Close"].squeeze()
         high_series = df["High"].squeeze()
@@ -127,9 +126,16 @@ def analyze_stock(stock_id):
 
         df["MACD_HIST"] = macd.macd_diff()
 
-        latest = df.iloc[-1]
-
+        # =========================
+        # 最新數值
+        # =========================
         close = float(close_series.iloc[-1])
+
+        ma5 = float(df["5MA"].iloc[-1])
+        ma20 = float(df["20MA"].iloc[-1])
+        ma60 = float(df["60MA"].iloc[-1])
+
+        macd_hist = float(df["MACD_HIST"].iloc[-1])
 
         # =========================
         # 訊息
@@ -137,7 +143,7 @@ def analyze_stock(stock_id):
         msg = f"\n【{stock_id} {stock_names.get(stock_id,'')}】\n"
 
         # =========================
-        # 條件1
+        # 買點條件1
         # =========================
         above_60 = (
             close_series.iloc[-3:] >
@@ -150,7 +156,7 @@ def analyze_stock(stock_id):
             msg += "✗ 尚未連3日站上60MA\n"
 
         # =========================
-        # 條件2
+        # 買點條件2
         # =========================
         recent_high = float(
             high_series.iloc[-20:-1].max()
@@ -168,7 +174,7 @@ def analyze_stock(stock_id):
             msg += f"✗ 距離前高差 {diff}%\n"
 
         # =========================
-        # 條件3
+        # 買點條件3
         # =========================
         recent_low = float(
             low_series.iloc[-20:-1].min()
@@ -184,24 +190,24 @@ def analyze_stock(stock_id):
             msg += "✗ 前日跌破前低\n"
 
         # =========================
-        # 條件4
+        # 買點條件4
         # =========================
-        if latest["MACD_HIST"] > 0:
+        if macd_hist > 0:
             msg += "✓ MACD翻正\n"
         else:
             msg += "✗ MACD尚未翻正\n"
 
         # =========================
-        # 賣點
+        # 賣點條件
         # =========================
         sell_signals = []
 
         bias20 = (
-            close / float(latest["20MA"]) - 1
+            close / ma20 - 1
         ) * 100
 
         bias60 = (
-            close / float(latest["60MA"]) - 1
+            close / ma60 - 1
         ) * 100
 
         if bias20 >= 30:
@@ -219,7 +225,7 @@ def analyze_stock(stock_id):
 
         if (
             five_day_change > 30 and
-            close < float(latest["5MA"])
+            close < ma5
         ):
             sell_signals.append("⚠ 急漲後跌破5MA")
 
