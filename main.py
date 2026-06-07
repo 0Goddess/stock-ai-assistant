@@ -1,4 +1,3 @@
-
 import os
 import json
 import requests
@@ -36,7 +35,17 @@ stock_names = {
 }
 
 # =========================
-# 讀取設定檔
+# 上櫃股票
+# =========================
+two_stocks = [
+    "2641",
+    "3707",
+    "6182",
+    "5347"
+]
+
+# =========================
+# 載入設定
 # =========================
 with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
@@ -44,7 +53,7 @@ with open("config.json", "r", encoding="utf-8") as f:
 stocks = config["stocks"]
 
 # =========================
-# 發送 LINE 訊息
+# 發送 LINE
 # =========================
 def send_line(msg):
 
@@ -73,8 +82,17 @@ def analyze_stock(stock_id):
 
     try:
 
-        ticker = f"{stock_id}.TW"
+        # =========================
+        # 上市 / 上櫃
+        # =========================
+        if stock_id in two_stocks:
+            ticker = f"{stock_id}.TWO"
+        else:
+            ticker = f"{stock_id}.TW"
 
+        # =========================
+        # 抓資料
+        # =========================
         df = yf.download(
             ticker,
             period="6mo",
@@ -89,22 +107,29 @@ def analyze_stock(stock_id):
             return f"\n【{stock_id}】資料不足\n"
 
         # =========================
+        # 修正欄位格式
+        # =========================
+        close_series = df["Close"].squeeze()
+        high_series = df["High"].squeeze()
+        low_series = df["Low"].squeeze()
+
+        # =========================
         # 均線
         # =========================
-        df["5MA"] = df["Close"].rolling(5).mean()
-        df["20MA"] = df["Close"].rolling(20).mean()
-        df["60MA"] = df["Close"].rolling(60).mean()
+        df["5MA"] = close_series.rolling(5).mean()
+        df["20MA"] = close_series.rolling(20).mean()
+        df["60MA"] = close_series.rolling(60).mean()
 
         # =========================
         # MACD
         # =========================
-        macd = MACD(close=df["Close"])
+        macd = MACD(close=close_series)
 
         df["MACD_HIST"] = macd.macd_diff()
 
         latest = df.iloc[-1]
 
-        close = float(latest["Close"])
+        close = float(close_series.iloc[-1])
 
         # =========================
         # 訊息
@@ -112,10 +137,10 @@ def analyze_stock(stock_id):
         msg = f"\n【{stock_id} {stock_names.get(stock_id,'')}】\n"
 
         # =========================
-        # 買點條件1
+        # 條件1
         # =========================
         above_60 = (
-            df["Close"].iloc[-3:] >
+            close_series.iloc[-3:] >
             df["60MA"].iloc[-3:]
         ).all()
 
@@ -125,15 +150,16 @@ def analyze_stock(stock_id):
             msg += "✗ 尚未連3日站上60MA\n"
 
         # =========================
-        # 買點條件2
+        # 條件2
         # =========================
         recent_high = float(
-            df["High"].iloc[-20:-1].max()
+            high_series.iloc[-20:-1].max()
         )
 
         if close >= recent_high:
             msg += "✓ 突破前波高點\n"
         else:
+
             diff = round(
                 (recent_high - close) / close * 100,
                 2
@@ -142,14 +168,14 @@ def analyze_stock(stock_id):
             msg += f"✗ 距離前高差 {diff}%\n"
 
         # =========================
-        # 買點條件3
+        # 條件3
         # =========================
         recent_low = float(
-            df["Low"].iloc[-20:-1].min()
+            low_series.iloc[-20:-1].min()
         )
 
         prev_low = float(
-            df["Low"].iloc[-2]
+            low_series.iloc[-2]
         )
 
         if prev_low >= recent_low:
@@ -158,7 +184,7 @@ def analyze_stock(stock_id):
             msg += "✗ 前日跌破前低\n"
 
         # =========================
-        # 買點條件4
+        # 條件4
         # =========================
         if latest["MACD_HIST"] > 0:
             msg += "✓ MACD翻正\n"
@@ -166,7 +192,7 @@ def analyze_stock(stock_id):
             msg += "✗ MACD尚未翻正\n"
 
         # =========================
-        # 賣點條件
+        # 賣點
         # =========================
         sell_signals = []
 
@@ -188,7 +214,7 @@ def analyze_stock(stock_id):
         # 五日漲幅
         # =========================
         five_day_change = (
-            close / float(df["Close"].iloc[-6]) - 1
+            close / float(close_series.iloc[-6]) - 1
         ) * 100
 
         if (
@@ -201,12 +227,12 @@ def analyze_stock(stock_id):
         # 趨勢轉弱
         # =========================
         above20 = (
-            df["Close"].iloc[-23:-3] >
+            close_series.iloc[-23:-3] >
             df["20MA"].iloc[-23:-3]
         ).all()
 
         below20 = (
-            df["Close"].iloc[-3:] <
+            close_series.iloc[-3:] <
             df["20MA"].iloc[-3:]
         ).all()
 
