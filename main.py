@@ -32,7 +32,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
 )
 client = gspread.authorize(creds)
 # =========================
-# 讀取 Google Sheet
+# Google Sheet
 # =========================
 SHEET_ID = "1gshq5BLEC5dsB8wzvjGNbwvqkO6ETTcQEQJm3S1Q9tk"
 sheet = client.open_by_key(SHEET_ID).worksheet("stocks")
@@ -57,10 +57,10 @@ def send_line(msg):
     print(response.status_code)
     print(response.text)
 # =========================
-# 取得前高前低
+# 前高前低
 # =========================
 def get_high_low(df, start_date, mode="high"):
-    if start_date:
+    if start_date and start_date != "nan":
         filtered = df[df.index >= start_date]
     else:
         filtered = df.tail(250)
@@ -82,7 +82,7 @@ def analyze_stock(row):
         # =========================
         # 上市 / 上櫃
         # =========================
-        if stock_id.startswith(("4", "5", "6", "8")):
+        if stock_id.startswith(("2", "4", "5", "6", "7", "8", "9")):
             ticker = f"{stock_id}.TWO"
         else:
             ticker = f"{stock_id}.TW"
@@ -127,12 +127,12 @@ def analyze_stock(row):
         # =========================
         recent_high = get_high_low(
             df,
-            high_date if high_date != "nan" else None,
+            high_date,
             "high"
         )
         recent_low = get_high_low(
             df,
-            low_date if low_date != "nan" else None,
+            low_date,
             "low"
         )
         # =========================
@@ -146,7 +146,7 @@ def analyze_stock(row):
             volume_range["Volume"].max()
         )
         # =========================
-        # 買點判斷
+        # 買點
         # =========================
         buy_reasons = []
         # 買點1
@@ -185,7 +185,7 @@ def analyze_stock(row):
                 "MACD翻正"
             )
         # =========================
-        # 賣點判斷
+        # 賣點
         # =========================
         sell_reasons = []
         bias20 = (
@@ -244,11 +244,19 @@ for row in data:
     if str(row["啟用"]).upper() != "Y":
         continue
     result = analyze_stock(row)
+    if result is None:
+        continue
+    # =========================
+    # 買點
+    # =========================
     if result["buy"]:
         msg = f"\n【{result['stock']}】\n"
         for reason in result["buy"]:
             msg += f"- {reason}\n"
         buy_list.append(msg)
+    # =========================
+    # 賣點
+    # =========================
     if result["sell"]:
         msg = f"\n【{result['stock']}】\n"
         for reason in result["sell"]:
@@ -259,12 +267,18 @@ for row in data:
 # =========================
 date_str = datetime.now().strftime("%Y-%m-%d")
 all_msg = f"📊 台股監控 {date_str}\n"
+# =========================
+# 買點觀察
+# =========================
 if buy_list:
     all_msg += "\n====================\n"
     all_msg += "【買點觀察】\n"
     all_msg += "====================\n"
     for msg in buy_list:
         all_msg += msg
+# =========================
+# 賣點警示
+# =========================
 if sell_list:
     all_msg += "\n====================\n"
     all_msg += "【賣點警示】\n"
