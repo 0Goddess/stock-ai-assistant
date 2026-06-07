@@ -264,13 +264,168 @@ def analyze_stock(stock_id):
 # =========================
 # 主程式
 # =========================
-all_msg = f"📊 台股監控 {datetime.now().strftime('%Y-%m-%d')}\n"
+date_str = datetime.now().strftime('%Y-%m-%d')
+
+strong_buy = []
+watch_buy = []
+sell_warning = []
+weak_list = []
 
 for stock in stocks:
 
     result = analyze_stock(stock)
 
-    all_msg += result
+    if "分析失敗" in result:
+        weak_list.append(result)
+        continue
+
+    lines = result.split("\n")
+
+    stock_title = lines[1]
+
+    has_60 = "✓ 連續3日站上60MA" in result
+    has_macd = "✓ MACD翻正" in result
+
+    near_high = False
+
+    for line in lines:
+
+        if "距離前高差" in line:
+
+            try:
+
+                diff = float(
+                    line.split("差 ")[1]
+                    .replace("%", "")
+                )
+
+                if diff <= 5:
+                    near_high = True
+
+            except:
+                pass
+
+    has_sell = "【賣點警示】" in result
+
+    # =========================
+    # 強勢買點
+    # =========================
+    if has_60 and has_macd and near_high:
+
+        msg = f"{stock_title}\n"
+
+        msg += "- 站上60MA\n"
+        msg += "- MACD翻正\n"
+        msg += "- 接近前高\n"
+
+        strong_buy.append(msg)
+
+    # =========================
+    # 買點觀察
+    # =========================
+    elif has_60 or has_macd:
+
+        msg = f"{stock_title}\n"
+
+        if has_60:
+            msg += "- 站上60MA\n"
+
+        if has_macd:
+            msg += "- MACD翻正\n"
+
+        for line in lines:
+
+            if "距離前高差" in line:
+                msg += f"- {line.replace('✗ ','')}\n"
+
+        watch_buy.append(msg)
+
+    # =========================
+    # 賣點警示
+    # =========================
+    if has_sell:
+
+        msg = f"{stock_title}\n"
+
+        capture = False
+
+        for line in lines:
+
+            if "【賣點警示】" in line:
+                capture = True
+                continue
+
+            if capture and line.strip():
+                msg += f"- {line}\n"
+
+        sell_warning.append(msg)
+
+    # =========================
+    # 弱勢整理
+    # =========================
+    if not has_60 and not has_macd:
+
+        msg = f"{stock_title}\n"
+
+        for line in lines:
+
+            if "✗" in line:
+                msg += f"- {line.replace('✗ ','')}\n"
+
+        weak_list.append(msg)
+
+# =========================
+# 組合訊息
+# =========================
+all_msg = f"📊 台股監控 {date_str}\n"
+
+# =========================
+# 強勢買點
+# =========================
+if strong_buy:
+
+    all_msg += "\n====================\n"
+    all_msg += "【強勢買點】\n"
+    all_msg += "====================\n"
+
+    for msg in strong_buy:
+        all_msg += f"\n{msg}"
+
+# =========================
+# 買點觀察
+# =========================
+if watch_buy:
+
+    all_msg += "\n====================\n"
+    all_msg += "【買點觀察】\n"
+    all_msg += "====================\n"
+
+    for msg in watch_buy:
+        all_msg += f"\n{msg}"
+
+# =========================
+# 賣點警示
+# =========================
+if sell_warning:
+
+    all_msg += "\n====================\n"
+    all_msg += "【賣點警示】\n"
+    all_msg += "====================\n"
+
+    for msg in sell_warning:
+        all_msg += f"\n{msg}"
+
+# =========================
+# 弱勢整理
+# =========================
+if weak_list:
+
+    all_msg += "\n====================\n"
+    all_msg += "【弱勢整理】\n"
+    all_msg += "====================\n"
+
+    for msg in weak_list:
+        all_msg += f"\n{msg}"
 
 # =========================
 # 發送
