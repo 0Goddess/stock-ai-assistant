@@ -1,4 +1,4 @@
-```python
+
 import os
 import json
 import requests
@@ -244,4 +244,3 @@ for stock in stocks:
 # 發送
 # =========================
 send_line(all_msg)
-```
