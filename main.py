@@ -147,7 +147,7 @@ def analyze_stock(row):
             volume_range = df[df.index >= high_date]
         else:
             volume_range = df.tail(250)
-max_volume = float(
+            max_volume = float(
     pd.Series(volume_range["Volume"]).max()
 )
         # =========================
