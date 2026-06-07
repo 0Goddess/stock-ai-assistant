@@ -67,7 +67,7 @@ def get_high_low(df, start_date, mode="high"):
     if filtered.empty:
         filtered = df.tail(250)
     if mode == "high":
-return float(
+        return float(
     pd.Series(filtered["High"]).max()
 )
     else:
