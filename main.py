@@ -71,10 +71,10 @@ def get_high_low(df, start_date, mode="high"):
     pd.Series(filtered["High"]).max()
 )
     else:
-close_series = pd.Series(df["Close"]).squeeze()
-high_series = pd.Series(df["High"]).squeeze()
-low_series = pd.Series(df["Low"]).squeeze()
-volume_series = pd.Series(df["Volume"]).squeeze()
+            close_series = pd.Series(df["Close"]).squeeze()
+            high_series = pd.Series(df["High"]).squeeze()
+            low_series = pd.Series(df["Low"]).squeeze()
+            volume_series = pd.Series(df["Volume"]).squeeze()
 # =========================
 # 技術分析
 # =========================
