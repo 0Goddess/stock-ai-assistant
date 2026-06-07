@@ -83,25 +83,37 @@ def analyze_stock(row):
         high_date = str(row["前高起算日"]).strip()
         low_date = str(row["前低起算日"]).strip()
         # =========================
-        # 上市 / 上櫃
+        # 自動判斷上市 / 上櫃
         # =========================
-        if stock_id.startswith(("2", "4", "5", "6", "7", "8", "9")):
-            ticker = f"{stock_id}.TWO"
-        else:
-            ticker = f"{stock_id}.TW"
-        # =========================
-        # 下載資料
-        # =========================
+        ticker_tw = f"{stock_id}.TW"
+        ticker_two = f"{stock_id}.TWO"
+        # 先抓上市
         df = yf.download(
-            ticker,
+            ticker_tw,
             period="2y",
             progress=False,
             auto_adjust=False
         )
+        ticker = ticker_tw
+        # 若抓不到 → 試上櫃
         if df.empty:
-            return f"\n【{stock_id} {stock_name}】\n抓不到資料\n"
+            df = yf.download(
+                ticker_two,
+                period="2y",
+                progress=False,
+                auto_adjust=False
+            )
+            ticker = ticker_two
+        # 仍抓不到
+        if df.empty:
+            return (
+                f"\n====================\n"
+                f"【{stock_id} {stock_name}】\n"
+                f"====================\n"
+                f"抓不到資料\n"
+            )
         # =========================
-        # 修正格式
+        # 修正 Yahoo 格式
         # =========================
         close_series = df["Close"]
         if isinstance(close_series, pd.DataFrame):
@@ -161,7 +173,7 @@ def analyze_stock(row):
             volume_data = volume_data.iloc[:, 0]
         max_volume = float(volume_data.max())
         # =========================
-        # 分析開始
+        # 開始訊息
         # =========================
         msg = f"\n====================\n"
         msg += f"【{stock_id} {stock_name}】\n"
@@ -293,7 +305,7 @@ def analyze_stock(row):
         else:
             msg += "✓ 尚未跌破20MA轉弱\n"
         # =========================
-        # 結論
+        # 總結
         # =========================
         msg += "\n【總結】\n"
         bullish = 0
@@ -319,7 +331,9 @@ def analyze_stock(row):
         return msg
     except Exception as e:
         return (
-            f"\n【{stock_id} {stock_name}】\n"
+            f"\n====================\n"
+            f"【{stock_id} {stock_name}】\n"
+            f"====================\n"
             f"分析失敗：{str(e)}\n"
         )
 # =========================
@@ -333,6 +347,6 @@ for row in data:
     result = analyze_stock(row)
     all_msg += result
 # =========================
-# 發送
+# 發送 LINE
 # =========================
 send_line(all_msg)
