@@ -150,7 +150,6 @@ volume_series = pd.Series(df["Volume"]).squeeze()
 max_volume = float(
     pd.Series(volume_range["Volume"]).max()
 )
-        )
         # =========================
         # 買點
         # =========================
