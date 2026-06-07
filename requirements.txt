@@ -1,6 +1,6 @@
 pandas
 yfinance
 requests
-pandas-ta
+pandas_ta
 gspread
 oauth2client
