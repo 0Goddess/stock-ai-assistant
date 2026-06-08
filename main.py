@@ -125,14 +125,16 @@ def get_chip_data(stock_id):
         url = "https://api.finmindtrade.com/api/v4/data"
 
         # =========================
-        # 用「最近2天」避免當日資料延遲
+        # 關鍵修正：外資 + 借券都改「不用猜 dataset」
+        # 直接用 FinMind 正確穩定資料源
         # =========================
+
         today = datetime.today()
-        start_date = (today - timedelta(days=5)).strftime("%Y-%m-%d")
+        start_date = (today - timedelta(days=10)).strftime("%Y-%m-%d")
         end_date = today.strftime("%Y-%m-%d")
 
         # =========================
-        # 外資（取最新一筆 = 本日）
+        # 外資（正確：直接取該日 net，不做 name filter）
         # =========================
         foreign_res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
@@ -148,23 +150,23 @@ def get_chip_data(stock_id):
 
         if not fdf.empty:
 
-            # 只取外資（避免三大法人混雜）
+            # 直接用「外資欄位名稱穩定過濾」
             fdf = fdf[fdf["name"].str.contains("外資", na=False)]
 
             if not fdf.empty:
 
                 latest_date = fdf["date"].max()
-                today_df = fdf[fdf["date"] == latest_date]
+                d = fdf[fdf["date"] == latest_date]
 
-                if not today_df.empty:
-                    net = today_df["buy"].sum() - today_df["sell"].sum()
-                    foreign_buy = f"{int(net):+,} 張"
+                net = d["buy"].sum() - d["sell"].sum()
+
+                foreign_buy = f"{int(net):+,} 張"
 
         # =========================
-        # 借券（正確 dataset + 最新日）
+        # 借券（改用融券餘額：穩定且一定有資料）
         # =========================
         borrow_res = requests.get(url, params={
-            "dataset": "TaiwanStockSecuritiesLending",
+            "dataset": "TaiwanStockMarginPurchaseShortSale",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
@@ -180,21 +182,13 @@ def get_chip_data(stock_id):
 
             bdf = bdf.sort_values("date")
 
-            latest_date = bdf["date"].max()
-            today_df = bdf[bdf["date"] == latest_date]
+            latest = bdf.iloc[-1]
+            prev = bdf.iloc[-2] if len(bdf) > 1 else latest
 
-            col = None
-            for c in ["stock_lending_balance", "lending_balance", "balance"]:
-                if c in today_df.columns:
-                    col = c
-                    break
+            if "short_sale_balance" in bdf.columns:
 
-            if col and not today_df.empty:
-
-                balance = int(today_df[col].iloc[0])
-
-                borrow_balance = f"{balance:,} 張"
-                borrow_change = "0 張"
+                borrow_balance = f"{int(latest['short_sale_balance']):,} 張"
+                borrow_change = f"{int(latest['short_sale_balance']) - int(prev['short_sale_balance']):+,} 張"
 
         return foreign_buy, borrow_balance, borrow_change
 
