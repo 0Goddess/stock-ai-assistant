@@ -775,7 +775,7 @@ for row in data:
             f"{str(e)}\n"
         )
 
-    all_msg += (
+        all_msg += (
         f"\n【系統錯誤】\n"
         f"{row['股票']} "
         f"{str(e)}\n"
