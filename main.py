@@ -114,106 +114,100 @@ def get_high_low(df, start_date, mode="high"):
 # =========================
 def get_chip_data(stock_id):
 
-    foreign_buy = "無資料"
-    borrow_balance = "無資料"
-    borrow_change = "無資料"
-
     try:
-
         token = FINMIND_TOKEN
 
         today = datetime.today()
-
-        start_date = (
-            today - timedelta(days=10)
-        ).strftime("%Y-%m-%d")
-
+        start_date = (today - timedelta(days=20)).strftime("%Y-%m-%d")
         end_date = today.strftime("%Y-%m-%d")
 
         # =========================
-        # 外資買賣超
+        # 外資買賣超（只取外資）
         # =========================
-        foreign_url = (
-            "https://api.finmindtrade.com/api/v4/data?"
-            f"dataset=TaiwanStockInstitutionalInvestorsBuySell&"
-            f"data_id={stock_id}&"
-            f"start_date={start_date}&"
-            f"end_date={end_date}&"
-            f"token={token}"
-        )
+        url = "https://api.finmindtrade.com/api/v4/data"
 
-        foreign_res = requests.get(foreign_url)
-        foreign_json = foreign_res.json()
-        print("外資資料:", foreign_json)
-        foreign_data = foreign_json.get("data", [])
+        params = {
+            "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
+            "data_id": stock_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "token": token
+        }
 
-        if len(foreign_data) > 0:
+        res = requests.get(url, params=params)
+        js = res.json()
 
-            foreign_df = pd.DataFrame(foreign_data)
+        print("外資原始回傳:", js)
 
-            foreign_df = foreign_df[
-                foreign_df["name"].str.contains(
-                    "Foreign",
-                    case=False,
-                    na=False
-                )
-            ]
+        df = pd.DataFrame(js.get("data", []))
+
+        foreign_buy = "無資料"
+
+        if not df.empty:
+
+            # 只取 Foreign（兼容不同命名）
+            foreign_df = df[df["name"].str.contains(
+                "Foreign|外資",
+                case=False,
+                na=False
+            )]
 
             if not foreign_df.empty:
 
-                latest = foreign_df.iloc[-1]
-
-                buy_sell = int(
-                    latest["buy"] - latest["sell"]
+                buy_sell = (
+                    foreign_df["buy"].sum()
+                    - foreign_df["sell"].sum()
                 )
 
-                foreign_buy = f"{buy_sell:+,} 張"
+                foreign_buy = f"{int(buy_sell):+,} 張"
 
         # =========================
         # 借券
         # =========================
-        borrow_url = (
-            "https://api.finmindtrade.com/api/v4/data?"
-            f"dataset=TaiwanStockBorrowBuySell&"
-            f"data_id={stock_id}&"
-            f"start_date={start_date}&"
-            f"end_date={end_date}&"
-            f"token={token}"
-        )
+        borrow_url = "https://api.finmindtrade.com/api/v4/data"
 
-        borrow_res = requests.get(borrow_url)
-        borrow_json = borrow_res.json()
-        print("借券資料:", borrow_json)
-        borrow_data = borrow_json.get("data", [])
+        params = {
+            "dataset": "TaiwanStockBorrowBuySell",
+            "data_id": stock_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "token": token
+        }
 
-        if len(borrow_data) >= 2:
+        res = requests.get(borrow_url, params=params)
+        js = res.json()
 
-            borrow_df = pd.DataFrame(borrow_data)
+        print("借券原始回傳:", js)
+
+        borrow_df = pd.DataFrame(js.get("data", []))
+
+        borrow_balance = "無資料"
+        borrow_change = "無資料"
+
+        if not borrow_df.empty:
+
+            borrow_df = borrow_df.sort_values("date")
 
             latest = borrow_df.iloc[-1]
-            prev = borrow_df.iloc[-2]
 
-            balance = int(latest["borrow_balance"])
+            balance = int(latest.get("borrow_balance", 0))
 
-            change = int(
-                latest["borrow_balance"]
-                -
-                prev["borrow_balance"]
-            )
+            if len(borrow_df) >= 2:
+                prev = borrow_df.iloc[-2]
+                change = balance - int(prev.get("borrow_balance", 0))
+            else:
+                change = 0
 
             borrow_balance = f"{balance:,} 張"
             borrow_change = f"{change:+,} 張"
 
+        return foreign_buy, borrow_balance, borrow_change
+
     except Exception as e:
 
-        print(f"{stock_id} 籌碼錯誤:", e)
+        print("籌碼模組錯誤:", e)
 
-    return (
-        foreign_buy,
-        borrow_balance,
-        borrow_change
-    )
-
+        return "無資料", "無資料", "無資料"
 # =========================
 # 技術分析
 # =========================
