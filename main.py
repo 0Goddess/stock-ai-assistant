@@ -117,16 +117,23 @@ def get_chip_data(stock_id):
     import os
     import requests
     import pandas as pd
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     token = os.getenv("FINMIND_TOKEN")
 
     url = "https://api.finmindtrade.com/api/v4/data"
 
-    today = datetime.today().strftime("%Y-%m-%d")
+    # =========================================================
+    # 不抓今天（FinMind 常還沒更新）
+    # 改抓最近 7 天最新一筆
+    # =========================================================
+    end_date = datetime.today().strftime("%Y-%m-%d")
+    start_date = (
+        datetime.today() - timedelta(days=7)
+    ).strftime("%Y-%m-%d")
 
     # =========================================================
-    # 外資（今日張數）
+    # 外資
     # =========================================================
     foreign_buy = "無資料"
 
@@ -134,97 +141,133 @@ def get_chip_data(stock_id):
 
         res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
-            "data_id": stock_id,
-            "start_date": today,
-            "end_date": today,
+            "data_id": str(stock_id),
+            "start_date": start_date,
+            "end_date": end_date,
             "token": token
-        }, timeout=10)
+        }, timeout=20)
 
         js = res.json()
+
+        print("外資API:", js)
 
         df = pd.DataFrame(js.get("data", []))
 
         if not df.empty:
 
-            # 真正外資
-            df = df[
-                df["name"].astype(str).str.contains(
-                    "外資及陸資",
-                    na=False
-                )
+            # =================================================
+            # 自動找外資名稱
+            # =================================================
+            keywords = [
+                "外資及陸資",
+                "外資",
+                "Foreign"
             ]
 
-            if not df.empty:
+            foreign_df = pd.DataFrame()
 
-                latest = df.iloc[-1]
+            for k in keywords:
 
-                # FinMind 是「股數」→ 轉張數
+                tmp = df[
+                    df["name"].astype(str).str.contains(
+                        k,
+                        na=False
+                    )
+                ]
+
+                if not tmp.empty:
+                    foreign_df = tmp
+                    break
+
+            if not foreign_df.empty:
+
+                foreign_df = foreign_df.sort_values("date")
+
+                latest = foreign_df.iloc[-1]
+
+                # 股 → 張
                 buy = int(latest.get("buy", 0)) // 1000
                 sell = int(latest.get("sell", 0)) // 1000
 
                 foreign_buy = f"{buy - sell:+,} 張"
 
     except Exception as e:
+
         print("外資錯誤:", e)
 
     # =========================================================
-    # 借券（今日張數）
+    # 借券
     # =========================================================
     borrow_balance = "無資料"
     borrow_change = "無資料"
 
     try:
 
-        res = requests.get(url, params={
-            "dataset": "TaiwanStockSecuritiesLending",
-            "data_id": stock_id,
-            "start_date": today,
-            "end_date": today,
-            "token": token
-        }, timeout=10)
+        datasets = [
+            "TaiwanStockSecuritiesLending",
+            "TaiwanStockMarginPurchaseShortSale"
+        ]
 
-        js = res.json()
+        for ds in datasets:
 
-        print("借券API:", js)
+            res = requests.get(url, params={
+                "dataset": ds,
+                "data_id": str(stock_id),
+                "start_date": start_date,
+                "end_date": end_date,
+                "token": token
+            }, timeout=20)
 
-        df = pd.DataFrame(js.get("data", []))
+            js = res.json()
 
-        if not df.empty:
+            print(f"{ds} API:", js)
+
+            df = pd.DataFrame(js.get("data", []))
+
+            if df.empty:
+                continue
+
+            df = df.sort_values("date")
 
             latest = df.iloc[-1]
+            prev = df.iloc[-2] if len(df) >= 2 else latest
 
-            # 借券餘額（股 → 張）
+            # =================================================
+            # 自動找欄位
+            # =================================================
             balance_cols = [
                 "stock_lending_balance",
                 "lending_balance",
-                "balance"
+                "balance",
+                "short_sale_balance"
             ]
 
-            for col in balance_cols:
-
-                if col in df.columns:
-
-                    borrow_balance = f"{int(latest[col]) // 1000:,} 張"
-                    break
-
-            # 借券增減（股 → 張）
             change_cols = [
                 "stock_lending_change",
                 "lending_change",
                 "change"
             ]
 
-            for col in change_cols:
+            balance_col = None
 
-                if col in df.columns:
-
-                    borrow_change = f"{int(latest[col]) // 1000:+,} 張"
+            for c in balance_cols:
+                if c in df.columns:
+                    balance_col = c
                     break
 
-            if borrow_change == "無資料":
-                borrow_change = "0 張"
+            if balance_col:
+
+                # 股 → 張
+                latest_v = int(latest[balance_col]) // 1000
+                prev_v = int(prev[balance_col]) // 1000
+
+                borrow_balance = f"{latest_v:,} 張"
+                borrow_change = f"{latest_v - prev_v:+,} 張"
+
+                break
 
     except Exception as e:
+
         print("借券錯誤:", e)
 
     return foreign_buy, borrow_balance, borrow_change
