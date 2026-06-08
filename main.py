@@ -182,6 +182,7 @@ def analyze_stock(row):
         # 買點分析
         # =========================
         msg += "\n【買點分析】\n"
+        buy_trigger = False
         # 買點1
         prev_below_60 = (
             close_series.iloc[-4] <
@@ -193,6 +194,7 @@ def analyze_stock(row):
         ).all()
         if prev_below_60 and recent_above_60:
             msg += "✓ 突破60MA（原低於60MA，連3日站上）\n"
+            buy_trigger = True
         else:
             msg += "✗ 尚未完成60MA突破條件\n"
         # 買點2
@@ -201,6 +203,7 @@ def analyze_stock(row):
             volume_today >= max_volume
         ):
             msg += "✓ 量價突破前高\n"
+            buy_trigger = True
         else:
             high_gap = (
                 (recent_high - close)
@@ -225,6 +228,7 @@ def analyze_stock(row):
             close > recent_low
         ):
             msg += "✓ 前低反彈\n"
+            buy_trigger = True
         else:
             low_gap = (
                 (close - recent_low)
@@ -240,6 +244,7 @@ def analyze_stock(row):
             macd_today > 0
         ):
             msg += "✓ MACD翻正\n"
+            buy_trigger = True
         else:
             msg += (
                 f"✗ MACD未翻正 "
@@ -249,6 +254,7 @@ def analyze_stock(row):
         # 賣點分析
         # =========================
         msg += "\n【賣點分析】\n"
+        sell_trigger = False
         bias20 = (
             close / ma20 - 1
         ) * 100
@@ -261,6 +267,7 @@ def analyze_stock(row):
                 f"⚠ 20MA乖離過大 "
                 f"({bias20:.2f}%)\n"
             )
+            sell_trigger = True
         else:
             msg += (
                 f"✓ 20MA乖離正常 "
@@ -272,6 +279,7 @@ def analyze_stock(row):
                 f"⚠ 60MA乖離過大 "
                 f"({bias60:.2f}%)\n"
             )
+            sell_trigger = True
         else:
             msg += (
                 f"✓ 60MA乖離正常 "
@@ -286,6 +294,7 @@ def analyze_stock(row):
             close < ma5
         ):
             msg += "⚠ 急漲後跌破5MA\n"
+            sell_trigger = True
         else:
             msg += (
                 f"✓ 5日漲幅 "
@@ -302,32 +311,33 @@ def analyze_stock(row):
         ).all()
         if above20 and below20:
             msg += "⚠ 連3日跌破20MA\n"
+            sell_trigger = True
         else:
             msg += "✓ 尚未跌破20MA轉弱\n"
+        # 賣點5
+        if (
+            macd_yesterday > 0 and
+            macd_today < 0
+        ):
+            msg += "⚠ MACD轉負\n"
+            sell_trigger = True
+        else:
+            msg += (
+                f"✓ MACD維持 "
+                f"({macd_today:.2f})\n"
+            )
         # =========================
         # 總結
         # =========================
         msg += "\n【總結】\n"
-        bullish = 0
-        bearish = 0
-        if prev_below_60 and recent_above_60:
-            bullish += 1
-        if macd_yesterday < 0 and macd_today > 0:
-            bullish += 1
-        if close >= recent_high:
-            bullish += 1
-        if bias20 >= 30:
-            bearish += 1
-        if bias60 >= 35:
-            bearish += 1
-        if above20 and below20:
-            bearish += 1
-        if bullish >= 2 and bearish == 0:
-            msg += "偏多觀察，可留意續強或突破\n"
-        elif bearish >= 2:
-            msg += "高檔風險升高，留意賣點\n"
+        if buy_trigger and not sell_trigger:
+            msg += "✓ 已出現買點訊號\n"
+        elif sell_trigger and not buy_trigger:
+            msg += "⚠ 已出現賣點訊號\n"
+        elif buy_trigger and sell_trigger:
+            msg += "⚠ 買賣訊號並存，留意震盪\n"
         else:
-            msg += "目前偏整理，持續觀察\n"
+            msg += "目前無明確買賣訊號\n"
         return msg
     except Exception as e:
         return (
@@ -339,14 +349,4 @@ def analyze_stock(row):
 # =========================
 # 主程式
 # =========================
-date_str = datetime.now().strftime("%Y-%m-%d")
-all_msg = f"📊 台股監控 {date_str}\n"
-for row in data:
-    if str(row["啟用"]).upper() != "Y":
-        continue
-    result = analyze_stock(row)
-    all_msg += result
-# =========================
-# 發送 LINE
-# =========================
-send_line(all_msg)
+date_s
