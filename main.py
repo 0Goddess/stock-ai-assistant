@@ -738,18 +738,43 @@ date_str = datetime.now().strftime("%Y-%m-%d")
 
 all_msg = f"📊 台股監控 {date_str}\n"
 
+```python id="jlwm92"
+processed_stocks = set()
+
 for row in data:
 
+    stock_id = str(row["股票"]).strip()
+
+    # =========================
+    # 避免重複股票
+    # =========================
+    if stock_id in processed_stocks:
+        continue
+
+    processed_stocks.add(stock_id)
+
+    # =========================
+    # 啟用判斷
+    # =========================
     if str(row["啟用"]).upper() != "Y":
         continue
 
-try:
+    # =========================
+    # 分析股票
+    # =========================
+    try:
 
-    result = analyze_stock(row)
+        result = analyze_stock(row)
 
-    all_msg += result
+        all_msg += result
 
-except Exception as e:
+    except Exception as e:
+
+        all_msg += (
+            f"\n【系統錯誤】\n"
+            f"{stock_id} "
+            f"{str(e)}\n"
+        )
 
     all_msg += (
         f"\n【系統錯誤】\n"
