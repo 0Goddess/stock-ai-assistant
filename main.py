@@ -124,58 +124,46 @@ def get_chip_data(stock_id):
         url = "https://api.finmindtrade.com/api/v4/data"
 
         # =========================
-        # 外資（正確拆分，不再亂加總）
+        # 外資（正確聚合）
         # =========================
-        foreign_params = {
+        foreign_res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
             "token": token
-        }
+        })
 
-        foreign_res = requests.get(url, params=foreign_params)
-        foreign_js = foreign_res.json()
-
-        print("外資原始回傳:", foreign_js)
-
-        foreign_df = pd.DataFrame(foreign_js.get("data", []))
+        foreign_df = pd.DataFrame(foreign_res.json().get("data", []))
 
         foreign_buy = "無資料"
 
         if not foreign_df.empty:
 
-            # 只取外資（避免三大法人混算）
-            foreign_only = foreign_df[
-                foreign_df["name"].str.contains("外資|Foreign", na=False)
+            foreign_df = foreign_df[
+                foreign_df["name"].str.contains("外資", na=False)
             ]
 
-            if not foreign_only.empty:
+            if not foreign_df.empty:
 
-                net = (
-                    foreign_only["buy"].sum()
-                    - foreign_only["sell"].sum()
+                daily = foreign_df.groupby("date").apply(
+                    lambda x: x["buy"].sum() - x["sell"].sum()
                 )
 
-                foreign_buy = f"{int(net):+,} 張"
+                foreign_buy = f"{int(daily.iloc[-1]):+,} 張"
 
         # =========================
         # 借券（正確 dataset）
         # =========================
-        borrow_params = {
-            "dataset": "TaiwanStockStockLending",
+        borrow_res = requests.get(url, params={
+            "dataset": "TaiwanStockBorrowMarginShortSale",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
             "token": token
-        }
+        })
 
-        borrow_res = requests.get(url, params=borrow_params)
-        borrow_js = borrow_res.json()
-
-        print("借券原始回傳:", borrow_js)
-
-        borrow_df = pd.DataFrame(borrow_js.get("data", []))
+        borrow_df = pd.DataFrame(borrow_res.json().get("data", []))
 
         borrow_balance = "無資料"
         borrow_change = "無資料"
@@ -186,14 +174,11 @@ def get_chip_data(stock_id):
 
             latest = borrow_df.iloc[-1]
 
-            balance = int(latest.get("stock_lending_balance", 0))
+            balance = int(latest.get("short_sale_balance", 0))
 
             if len(borrow_df) >= 2:
-
                 prev = borrow_df.iloc[-2]
-
-                change = balance - int(prev.get("stock_lending_balance", 0))
-
+                change = balance - int(prev.get("short_sale_balance", 0))
             else:
                 change = 0
 
