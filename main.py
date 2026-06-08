@@ -767,7 +767,7 @@ for row in data:
 
         all_msg += result
 
-except Exception as e:
+    except Exception as e:
 
         all_msg += (
             f"\n【系統錯誤】\n"
