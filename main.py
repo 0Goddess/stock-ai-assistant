@@ -743,11 +743,23 @@ for row in data:
     if str(row["啟用"]).upper() != "Y":
         continue
 
+try:
     result = analyze_stock(row)
-
     all_msg += result
+except Exception as e:
+    all_msg += (
+        f"\n【系統錯誤】\n"
+        f"{row['股票']} "
+        f"{str(e)}\n"
+    )
 
 # =========================
 # 發送 LINE
 # =========================
-send_line(all_msg)
+try:
+
+    send_line(all_msg)
+
+except Exception as e:
+
+    print("LINE發送失敗:", e)
