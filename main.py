@@ -537,152 +537,135 @@ def analyze_stock(row):
                 f"✓ MACD維持 "
                 f"({macd_today:.2f})\n"
             )
-except Exception as e:
 
-    print("技術分析錯誤:", e)
-# =========================================================
-# 籌碼面
-# =========================================================
-foreign_buy, borrow_balance, borrow_change = (
-    get_chip_data(stock_id)
-)
-# =========================================================
-# 外資分析
-# =========================================================
-foreign_text = ""
-foreign_ratio_text = ""
-try:
-    foreign_value = int(
-        foreign_buy
-        .replace(" 張", "")
-        .replace(",", "")
-    )
-    volume_today = int(
-        latest_data["Volume"]
-    ) // 1000
-    if volume_today > 0:
-        foreign_ratio = (
-            abs(foreign_value)
-            / volume_today
-        ) * 100
-    else:
-        foreign_ratio = 0
-    # =====================================================
-    # 外資敘述
-    # =====================================================
-    if foreign_value >= 1000:
-        foreign_text = (
-            f"✓ 外資明顯買超："
-            f"{foreign_buy}"
+        # =========================================================
+        # 籌碼面
+        # =========================================================
+        foreign_buy, borrow_balance, borrow_change = (
+            get_chip_data(stock_id)
         )
-    elif foreign_value > 0:
-        foreign_text = (
-            f"△ 外資小幅買超："
-            f"{foreign_buy}"
-        )
-    elif foreign_value <= -1000:
-        foreign_text = (
-            f"⚠ 外資明顯賣超："
-            f"{foreign_buy}"
-        )
-    elif foreign_value < 0:
-        foreign_text = (
-            f"△ 外資小幅賣超："
-            f"{foreign_buy}"
-        )
-    else:
-        foreign_text = (
-            f"△ 外資無明顯方向："
-            f"{foreign_buy}"
-        )
-    # =====================================================
-    # 外資影響力
-    # =====================================================
-    if foreign_ratio >= 10:
-        foreign_ratio_text = (
-            f"✓ 外資影響力強 "
-            f"({foreign_ratio:.1f}%)"
-        )
-    elif foreign_ratio >= 3:
-        if foreign_value >= 0:
-            foreign_ratio_text = (
-                f"△ 外資偏多 "
-                f"({foreign_ratio:.1f}%)"
+        # =========================================================
+        # 外資分析
+        # =========================================================
+        foreign_text = ""
+        foreign_ratio_text = ""
+        try:
+            foreign_value = int(
+                foreign_buy
+                .replace(" 張", "")
+                .replace(",", "")
             )
-        else:
-            foreign_ratio_text = (
-                f"△ 外資偏空 "
-                f"({foreign_ratio:.1f}%)"
+            volume_today = int(volume_today) // 1000
+            if volume_today > 0:
+                foreign_ratio = (
+                    abs(foreign_value)
+                    / volume_today
+                ) * 100
+            else:
+                foreign_ratio = 0
+            if foreign_value >= 1000:
+                foreign_text = (
+                    f"✓ 外資明顯買超："
+                    f"{foreign_buy}"
+                )
+            elif foreign_value > 0:
+                foreign_text = (
+                    f"△ 外資小幅買超："
+                    f"{foreign_buy}"
+                )
+            elif foreign_value <= -1000:
+                foreign_text = (
+                    f"⚠ 外資明顯賣超："
+                    f"{foreign_buy}"
+                )
+            elif foreign_value < 0:
+                foreign_text = (
+                    f"△ 外資小幅賣超："
+                    f"{foreign_buy}"
+                )
+            else:
+                foreign_text = (
+                    f"△ 外資無明顯方向："
+                    f"{foreign_buy}"
+                )
+            if foreign_ratio >= 10:
+                foreign_ratio_text = (
+                    f"✓ 外資影響力強 "
+                    f"({foreign_ratio:.1f}%)"
+                )
+            elif foreign_ratio >= 3:
+                if foreign_value >= 0:
+                    foreign_ratio_text = (
+                        f"△ 外資偏多 "
+                        f"({foreign_ratio:.1f}%)"
+                    )
+                else:
+                    foreign_ratio_text = (
+                        f"△ 外資偏空 "
+                        f"({foreign_ratio:.1f}%)"
+                    )
+            else:
+                foreign_ratio_text = (
+                    f"△ 外資影響有限 "
+                    f"({foreign_ratio:.1f}%)"
+                )
+        except:
+            foreign_text = (
+                f"外資買賣超：{foreign_buy}"
             )
-    else:
-        foreign_ratio_text = (
-            f"△ 外資影響有限 "
-            f"({foreign_ratio:.1f}%)"
+        # =========================================================
+        # 借券分析
+        # =========================================================
+        borrow_text = ""
+        try:
+            borrow_balance_num = int(
+                borrow_balance
+                .replace(" 張", "")
+                .replace(",", "")
+            )
+            borrow_change_num = int(
+                borrow_change
+                .replace(" 張", "")
+                .replace(",", "")
+                .replace("+", "")
+            )
+            if borrow_balance_num > 0:
+                borrow_ratio = (
+                    borrow_change_num
+                    / borrow_balance_num
+                ) * 100
+            else:
+                borrow_ratio = 0
+            if borrow_ratio >= 10:
+                borrow_text = (
+                    f"⚠ 借券賣出大增 "
+                    f"({borrow_ratio:.1f}%)"
+                )
+            elif borrow_ratio >= 3:
+                borrow_text = (
+                    f"△ 借券賣出增加 "
+                    f"({borrow_ratio:.1f}%)"
+                )
+            elif borrow_ratio <= -3:
+                borrow_text = (
+                    f"✓ 借券賣出減少 "
+                    f"({borrow_ratio:.1f}%)"
+                )
+            else:
+                borrow_text = (
+                    f"△ 借券賣出變化正常 "
+                    f"({borrow_ratio:.1f}%)"
+                )
+        except:
+            borrow_text = "借券資料不足"
+        msg += (
+            f"\n【籌碼面】\n"
+            f"{foreign_text}\n"
+            f"{foreign_ratio_text}\n\n"
+            f"借券賣出餘額：{borrow_balance}\n"
+            f"借券賣出增減：{borrow_change}\n"
+            f"{borrow_text}\n"
         )
-except:
-    foreign_text = (
-        f"外資買賣超：{foreign_buy}"
-    )
-# =========================================================
-# 借券分析
-# =========================================================
-borrow_text = ""
-try:
-    borrow_balance_num = int(
-        borrow_balance
-        .replace(" 張", "")
-        .replace(",", "")
-    )
-    borrow_change_num = int(
-        borrow_change
-        .replace(" 張", "")
-        .replace(",", "")
-        .replace("+", "")
-    )
-    if borrow_balance_num > 0:
-        borrow_ratio = (
-            borrow_change_num
-            / borrow_balance_num
-        ) * 100
-    else:
-        borrow_ratio = 0
-    # =====================================================
-    # 借券敘述
-    # =====================================================
-    if borrow_ratio >= 10:
-        borrow_text = (
-            f"⚠ 借券賣出大增 "
-            f"({borrow_ratio:.1f}%)"
-        )
-    elif borrow_ratio >= 3:
-        borrow_text = (
-            f"△ 借券賣出增加 "
-            f"({borrow_ratio:.1f}%)"
-        )
-    elif borrow_ratio <= -3:
-        borrow_text = (
-            f"✓ 借券賣出減少 "
-            f"({borrow_ratio:.1f}%)"
-        )
-    else:
-        borrow_text = (
-            f"△ 借券賣出變化正常 "
-            f"({borrow_ratio:.1f}%)"
-        )
-except:
-    borrow_text = "借券資料不足"
-# =========================================================
-# 輸出籌碼面
-# =========================================================
-message += (
-    f"\n【籌碼面】\n"
-    f"{foreign_text}\n"
-    f"{foreign_ratio_text}\n\n"
-    f"借券賣出餘額：{borrow_balance}\n"
-    f"借券賣出增減：{borrow_change}\n"
-    f"{borrow_text}\n"
-)
-
         # =========================
         # AI總結
         # =========================
