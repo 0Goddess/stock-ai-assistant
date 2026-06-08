@@ -8,7 +8,6 @@ import gspread
 from ta.trend import MACD
 from datetime import datetime, timedelta
 from oauth2client.service_account import ServiceAccountCredentials
-from FinMind.data import DataLoader
 
 # =========================
 # LINE
@@ -23,12 +22,9 @@ headers = {
 }
 
 # =========================
-# FinMind
+# FinMind Token
 # =========================
 FINMIND_TOKEN = os.getenv("FINMIND_TOKEN")
-
-api = DataLoader()
-api.login_by_token(api_token=FINMIND_TOKEN)
 
 # =========================
 # Google Sheet
@@ -123,10 +119,12 @@ def get_chip_data(stock_id):
 
     try:
 
+        token = FINMIND_TOKEN
+
         today = datetime.today()
 
         start_date = (
-            today - timedelta(days=30)
+            today - timedelta(days=10)
         ).strftime("%Y-%m-%d")
 
         end_date = today.strftime("%Y-%m-%d")
@@ -134,15 +132,24 @@ def get_chip_data(stock_id):
         # =========================
         # 外資買賣超
         # =========================
-        foreign_df = api.taiwan_stock_institutional_investors(
-            stock_id=stock_id,
-            start_date=start_date,
-            end_date=end_date
+        foreign_url = (
+            "https://api.finmindtrade.com/api/v4/data?"
+            f"dataset=TaiwanStockInstitutionalInvestorsBuySell&"
+            f"data_id={stock_id}&"
+            f"start_date={start_date}&"
+            f"end_date={end_date}&"
+            f"token={token}"
         )
 
-        if not foreign_df.empty:
+        foreign_res = requests.get(foreign_url)
+        foreign_json = foreign_res.json()
 
-            # 找外資資料
+        foreign_data = foreign_json.get("data", [])
+
+        if len(foreign_data) > 0:
+
+            foreign_df = pd.DataFrame(foreign_data)
+
             foreign_df = foreign_df[
                 foreign_df["name"].str.contains(
                     "Foreign",
@@ -161,32 +168,32 @@ def get_chip_data(stock_id):
 
                 foreign_buy = f"{buy_sell:+,} 張"
 
-    except Exception as e:
-
-        print(f"{stock_id} 外資錯誤:", e)
-
-    try:
-
         # =========================
         # 借券
         # =========================
-        borrow_df = api.taiwan_stock_borrow_sell(
-            stock_id=stock_id,
-            start_date=start_date,
-            end_date=end_date
+        borrow_url = (
+            "https://api.finmindtrade.com/api/v4/data?"
+            f"dataset=TaiwanStockBorrowBuySell&"
+            f"data_id={stock_id}&"
+            f"start_date={start_date}&"
+            f"end_date={end_date}&"
+            f"token={token}"
         )
 
-        if not borrow_df.empty and len(borrow_df) >= 2:
+        borrow_res = requests.get(borrow_url)
+        borrow_json = borrow_res.json()
+
+        borrow_data = borrow_json.get("data", [])
+
+        if len(borrow_data) >= 2:
+
+            borrow_df = pd.DataFrame(borrow_data)
 
             latest = borrow_df.iloc[-1]
             prev = borrow_df.iloc[-2]
 
-            # 最新餘額
-            balance = int(
-                latest["borrow_balance"]
-            )
+            balance = int(latest["borrow_balance"])
 
-            # 增減
             change = int(
                 latest["borrow_balance"]
                 -
@@ -198,13 +205,14 @@ def get_chip_data(stock_id):
 
     except Exception as e:
 
-        print(f"{stock_id} 借券錯誤:", e)
+        print(f"{stock_id} 籌碼錯誤:", e)
 
     return (
         foreign_buy,
         borrow_balance,
         borrow_change
     )
+
 # =========================
 # 技術分析
 # =========================
@@ -253,10 +261,12 @@ def analyze_stock(row):
         # 修正格式
         # =========================
         close_series = df["Close"]
+
         if isinstance(close_series, pd.DataFrame):
             close_series = close_series.iloc[:, 0]
 
         volume_series = df["Volume"]
+
         if isinstance(volume_series, pd.DataFrame):
             volume_series = volume_series.iloc[:, 0]
 
