@@ -738,7 +738,6 @@ date_str = datetime.now().strftime("%Y-%m-%d")
 
 all_msg = f"📊 台股監控 {date_str}\n"
 
-```python id="jlwm92"
 processed_stocks = set()
 
 for row in data:
