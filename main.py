@@ -123,9 +123,9 @@ def get_chip_data(stock_id):
 
         url = "https://api.finmindtrade.com/api/v4/data"
 
-        # =========================
-        # 外資（正確聚合）
-        # =========================
+        # =========================================================
+        # 外資（正確：直接用 buy - sell，不做 name filter）
+        # =========================================================
         foreign_res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
             "data_id": stock_id,
@@ -140,23 +140,16 @@ def get_chip_data(stock_id):
 
         if not foreign_df.empty:
 
-            foreign_df = foreign_df[
-                foreign_df["name"].str.contains("外資", na=False)
-            ]
+            # 直接加總（避免 name 欄位錯誤）
+            net = foreign_df["buy"].sum() - foreign_df["sell"].sum()
 
-            if not foreign_df.empty:
+            foreign_buy = f"{int(net):+,} 張"
 
-                daily = foreign_df.groupby("date").apply(
-                    lambda x: x["buy"].sum() - x["sell"].sum()
-                )
-
-                foreign_buy = f"{int(daily.iloc[-1]):+,} 張"
-
-        # =========================
-        # 借券（正確 dataset）
-        # =========================
+        # =========================================================
+        # 借券（改用穩定 dataset）
+        # =========================================================
         borrow_res = requests.get(url, params={
-            "dataset": "TaiwanStockBorrowMarginShortSale",
+            "dataset": "TaiwanStockSecuritiesLending",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
@@ -172,18 +165,26 @@ def get_chip_data(stock_id):
 
             borrow_df = borrow_df.sort_values("date")
 
-            latest = borrow_df.iloc[-1]
+            # 自動找可用欄位（防 dataset 欄位變動）
+            col = None
+            for c in ["stock_lending_balance", "lending_balance", "balance"]:
+                if c in borrow_df.columns:
+                    col = c
+                    break
 
-            balance = int(latest.get("short_sale_balance", 0))
+            if col:
 
-            if len(borrow_df) >= 2:
-                prev = borrow_df.iloc[-2]
-                change = balance - int(prev.get("short_sale_balance", 0))
-            else:
-                change = 0
+                latest = borrow_df.iloc[-1]
+                balance = int(latest[col])
 
-            borrow_balance = f"{balance:,} 張"
-            borrow_change = f"{change:+,} 張"
+                if len(borrow_df) >= 2:
+                    prev = borrow_df.iloc[-2]
+                    change = balance - int(prev[col])
+                else:
+                    change = 0
+
+                borrow_balance = f"{balance:,} 張"
+                borrow_change = f"{change:+,} 張"
 
         return foreign_buy, borrow_balance, borrow_change
 
