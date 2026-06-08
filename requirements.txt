@@ -4,5 +4,3 @@ ta
 requests
 gspread
 oauth2client
-finmind
-tqdm
