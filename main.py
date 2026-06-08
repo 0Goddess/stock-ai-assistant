@@ -118,74 +118,69 @@ def get_chip_data(stock_id):
         import os
         import requests
         import pandas as pd
-        from datetime import datetime, timedelta
 
         token = os.getenv("FINMIND_TOKEN")
 
         url = "https://api.finmindtrade.com/api/v4/data"
 
         # =========================
-        # 關鍵修正：外資 + 借券都改「不用猜 dataset」
-        # 直接用 FinMind 正確穩定資料源
+        # 最終修正：不再用 borrowing / lending dataset（你環境就是拿不到）
+        # 改用「FinMind 保證有資料的兩個來源」
         # =========================
 
-        today = datetime.today()
-        start_date = (today - timedelta(days=10)).strftime("%Y-%m-%d")
-        end_date = today.strftime("%Y-%m-%d")
-
-        # =========================
-        # 外資（正確：直接取該日 net，不做 name filter）
-        # =========================
-        foreign_res = requests.get(url, params={
+        # =========================================================
+        # 外資：用日資料 + 正確拆 "外資及陸資"
+        # =========================================================
+        foreign = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
             "data_id": stock_id,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": "2024-01-01",
+            "end_date": "2026-12-31",
             "token": token
-        })
+        }).json()
 
-        fdf = pd.DataFrame(foreign_res.json().get("data", []))
+        fdf = pd.DataFrame(foreign.get("data", []))
 
         foreign_buy = "無資料"
 
         if not fdf.empty:
 
-            # 直接用「外資欄位名稱穩定過濾」
-            fdf = fdf[fdf["name"].str.contains("外資", na=False)]
+            # FinMind 真正名稱（最關鍵修正）
+            fdf = fdf[fdf["name"].str.contains("外資及陸資", na=False)]
 
             if not fdf.empty:
 
                 latest_date = fdf["date"].max()
-                d = fdf[fdf["date"] == latest_date]
+                today_df = fdf[fdf["date"] == latest_date]
 
-                net = d["buy"].sum() - d["sell"].sum()
+                net = int(today_df["buy"].sum() - today_df["sell"].sum())
 
-                foreign_buy = f"{int(net):+,} 張"
+                foreign_buy = f"{net:+,} 張"
 
-        # =========================
-        # 借券（改用融券餘額：穩定且一定有資料）
-        # =========================
-        borrow_res = requests.get(url, params={
+        # =========================================================
+        # 借券：改用「融資融券」(100%有資料)
+        # =========================================================
+        margin = requests.get(url, params={
             "dataset": "TaiwanStockMarginPurchaseShortSale",
             "data_id": stock_id,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": "2024-01-01",
+            "end_date": "2026-12-31",
             "token": token
-        })
+        }).json()
 
-        bdf = pd.DataFrame(borrow_res.json().get("data", []))
+        mdf = pd.DataFrame(margin.get("data", []))
 
         borrow_balance = "無資料"
         borrow_change = "無資料"
 
-        if not bdf.empty:
+        if not mdf.empty:
 
-            bdf = bdf.sort_values("date")
+            mdf = mdf.sort_values("date")
 
-            latest = bdf.iloc[-1]
-            prev = bdf.iloc[-2] if len(bdf) > 1 else latest
+            latest = mdf.iloc[-1]
+            prev = mdf.iloc[-2] if len(mdf) > 1 else latest
 
-            if "short_sale_balance" in bdf.columns:
+            if "short_sale_balance" in mdf.columns:
 
                 borrow_balance = f"{int(latest['short_sale_balance']):,} 張"
                 borrow_change = f"{int(latest['short_sale_balance']) - int(prev['short_sale_balance']):+,} 張"
