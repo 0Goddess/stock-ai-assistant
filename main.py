@@ -117,28 +117,38 @@ def get_high_low(df, start_date, mode="high"):
 # =========================
 def get_chip_data(stock_id):
 
+    foreign_buy = "無資料"
+    borrow_balance = "無資料"
+    borrow_change = "無資料"
+
     try:
 
         today = datetime.today()
+
         start_date = (
-            today - timedelta(days=10)
+            today - timedelta(days=30)
         ).strftime("%Y-%m-%d")
 
         end_date = today.strftime("%Y-%m-%d")
 
-        # 外資
+        # =========================
+        # 外資買賣超
+        # =========================
         foreign_df = api.taiwan_stock_institutional_investors(
             stock_id=stock_id,
             start_date=start_date,
             end_date=end_date
         )
 
-        foreign_buy = "無資料"
-
         if not foreign_df.empty:
 
+            # 找外資資料
             foreign_df = foreign_df[
-                foreign_df["name"] == "Foreign_Investor"
+                foreign_df["name"].str.contains(
+                    "Foreign",
+                    case=False,
+                    na=False
+                )
             ]
 
             if not foreign_df.empty:
@@ -151,47 +161,50 @@ def get_chip_data(stock_id):
 
                 foreign_buy = f"{buy_sell:+,} 張"
 
+    except Exception as e:
+
+        print(f"{stock_id} 外資錯誤:", e)
+
+    try:
+
+        # =========================
         # 借券
+        # =========================
         borrow_df = api.taiwan_stock_borrow_sell(
             stock_id=stock_id,
             start_date=start_date,
             end_date=end_date
         )
 
-        borrow_balance = "無資料"
-        borrow_change = "無資料"
-
-        if not borrow_df.empty:
+        if not borrow_df.empty and len(borrow_df) >= 2:
 
             latest = borrow_df.iloc[-1]
+            prev = borrow_df.iloc[-2]
 
+            # 最新餘額
             balance = int(
-                latest["BorrowRemain"]
+                latest["borrow_balance"]
             )
 
+            # 增減
             change = int(
-                latest["BorrowRemain"]
+                latest["borrow_balance"]
                 -
-                borrow_df.iloc[-2]["BorrowRemain"]
+                prev["borrow_balance"]
             )
 
             borrow_balance = f"{balance:,} 張"
             borrow_change = f"{change:+,} 張"
 
-        return (
-            foreign_buy,
-            borrow_balance,
-            borrow_change
-        )
-
     except Exception as e:
 
-        return (
-            "無資料",
-            "無資料",
-            "無資料"
-        )
+        print(f"{stock_id} 借券錯誤:", e)
 
+    return (
+        foreign_buy,
+        borrow_balance,
+        borrow_change
+    )
 # =========================
 # 技術分析
 # =========================
