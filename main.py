@@ -143,7 +143,7 @@ def get_chip_data(stock_id):
 
         foreign_res = requests.get(foreign_url)
         foreign_json = foreign_res.json()
-
+        print("外資資料:", foreign_json)
         foreign_data = foreign_json.get("data", [])
 
         if len(foreign_data) > 0:
@@ -182,7 +182,7 @@ def get_chip_data(stock_id):
 
         borrow_res = requests.get(borrow_url)
         borrow_json = borrow_res.json()
-
+        print("借券資料:", borrow_json)
         borrow_data = borrow_json.get("data", [])
 
         if len(borrow_data) >= 2:
