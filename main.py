@@ -143,11 +143,7 @@ def get_chip_data(stock_id):
             timeout=20
         )
         js = res.json()
-        print("========== 外資API ==========")
-        print(js)
         df = pd.DataFrame(js.get("data", []))
-        print("========== 外資欄位 ==========")
-        print(df.columns)
         if not df.empty:
             keywords = [
                 "外資及陸資",
@@ -176,36 +172,19 @@ def get_chip_data(stock_id):
                     -1
                 ):
                     row = foreign_df.iloc[i]
+                    buy = int(
+                        row.get("buy", 0)
+                    )
+                    sell = int(
+                        row.get("sell", 0)
+                    )
                     # =============================================
-                    # 優先抓淨買賣超
+                    # FinMind 是股數
+                    # 需轉張
                     # =============================================
-                    possible_cols = [
-                        "buy_sell",
-                        "net_buy_sell",
-                        "difference"
-                    ]
-                    diff = None
-                    for c in possible_cols:
-                        if c in foreign_df.columns:
-                            diff = int(row[c])
-                            break
-                    # =============================================
-                    # 如果沒有淨值欄位
-                    # 才自己計算
-                    # =============================================
-                    if diff is None:
-                        buy = int(
-                            row.get("buy", 0)
-                        )
-                        sell = int(
-                            row.get("sell", 0)
-                        )
-                        diff = buy - sell
-                    # =============================================
-                    # 自動判斷股 / 張
-                    # =============================================
-                    if abs(diff) > 100000:
-                        diff = diff // 1000
+                    diff = (
+                        buy - sell
+                    ) // 1000
                     if diff != 0:
                         latest_value = diff
                         break
@@ -235,11 +214,7 @@ def get_chip_data(stock_id):
             timeout=20
         )
         js = res.json()
-        print("========== 借券API ==========")
-        print(js)
         df = pd.DataFrame(js.get("data", []))
-        print("========== 借券欄位 ==========")
-        print(df.columns)
         if not df.empty:
             df = df.sort_values("date")
             latest = df.iloc[-1]
@@ -247,43 +222,30 @@ def get_chip_data(stock_id):
                 prev = df.iloc[-2]
             else:
                 prev = latest
-            print("========== 最新借券資料 ==========")
-            print(latest)
-            # =================================================
-            # 自動找欄位
-            # =================================================
-            possible_cols = [
-                "short_sale_balance",
-                "balance",
-                "today_balance"
-            ]
-            balance_col = None
-            for c in possible_cols:
-                if c in df.columns:
-                    balance_col = c
-                    break
-            print("========== 使用欄位 ==========")
-            print(balance_col)
-            if balance_col:
-                balance = int(
-                    latest[balance_col]
-                )
-                prev_balance = int(
-                    prev[balance_col]
-                )
-                # =============================================
-                # 自動判斷股 / 張
-                # =============================================
-                if abs(balance) > 100000:
-                    balance = balance // 1000
-                if abs(prev_balance) > 100000:
-                    prev_balance = prev_balance // 1000
-                borrow_balance = (
-                    f"{balance:,} 張"
-                )
-                borrow_change = (
-                    f"{balance - prev_balance:+,} 張"
-                )
+            # =============================================
+            # 借券餘額
+            # =============================================
+            balance = int(
+                latest[
+                    "SBLShortSalesCurrentDayBalance"
+                ]
+            )
+            prev_balance = int(
+                prev[
+                    "SBLShortSalesCurrentDayBalance"
+                ]
+            )
+            # =============================================
+            # 股 → 張
+            # =============================================
+            balance = balance // 1000
+            prev_balance = prev_balance // 1000
+            borrow_balance = (
+                f"{balance:,} 張"
+            )
+            borrow_change = (
+                f"{balance - prev_balance:+,} 張"
+            )
     except Exception as e:
         print("借券錯誤:", e)
     return (
