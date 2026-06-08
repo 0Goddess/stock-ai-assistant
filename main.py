@@ -146,6 +146,8 @@ def get_chip_data(stock_id):
         print("========== 外資API ==========")
         print(js)
         df = pd.DataFrame(js.get("data", []))
+        print("========== 外資欄位 ==========")
+        print(df.columns)
         if not df.empty:
             keywords = [
                 "外資及陸資",
@@ -167,9 +169,6 @@ def get_chip_data(stock_id):
                 foreign_df = foreign_df.sort_values(
                     "date"
                 )
-                # =================================================
-                # 找最近非0買賣超
-                # =================================================
                 latest_value = None
                 for i in range(
                     len(foreign_df) - 1,
@@ -177,13 +176,31 @@ def get_chip_data(stock_id):
                     -1
                 ):
                     row = foreign_df.iloc[i]
-                    buy = int(
-                        row.get("buy", 0)
-                    )
-                    sell = int(
-                        row.get("sell", 0)
-                    )
-                    diff = buy - sell
+                    # =============================================
+                    # 優先抓淨買賣超
+                    # =============================================
+                    possible_cols = [
+                        "buy_sell",
+                        "net_buy_sell",
+                        "difference"
+                    ]
+                    diff = None
+                    for c in possible_cols:
+                        if c in foreign_df.columns:
+                            diff = int(row[c])
+                            break
+                    # =============================================
+                    # 如果沒有淨值欄位
+                    # 才自己計算
+                    # =============================================
+                    if diff is None:
+                        buy = int(
+                            row.get("buy", 0)
+                        )
+                        sell = int(
+                            row.get("sell", 0)
+                        )
+                        diff = buy - sell
                     # =============================================
                     # 自動判斷股 / 張
                     # =============================================
@@ -209,7 +226,7 @@ def get_chip_data(stock_id):
         res = requests.get(
             url,
             params={
-                "dataset": "TaiwanStockSecuritiesLending",
+                "dataset": "TaiwanDailyShortSaleBalances",
                 "data_id": str(stock_id),
                 "start_date": start_date,
                 "end_date": end_date,
@@ -236,10 +253,9 @@ def get_chip_data(stock_id):
             # 自動找欄位
             # =================================================
             possible_cols = [
-                "stock_lending_balance",
-                "lending_balance",
+                "short_sale_balance",
                 "balance",
-                "short_sale_balance"
+                "today_balance"
             ]
             balance_col = None
             for c in possible_cols:
