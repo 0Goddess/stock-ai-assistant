@@ -184,6 +184,11 @@ def get_chip_data(stock_id):
                         row.get("sell", 0)
                     )
                     diff = buy - sell
+                    # =============================================
+                    # 自動判斷股 / 張
+                    # =============================================
+                    if abs(diff) > 100000:
+                        diff = diff // 1000
                     if diff != 0:
                         latest_value = diff
                         break
@@ -204,7 +209,7 @@ def get_chip_data(stock_id):
         res = requests.get(
             url,
             params={
-                "dataset": "TaiwanStockBorrowBuySell",
+                "dataset": "TaiwanStockSecuritiesLending",
                 "data_id": str(stock_id),
                 "start_date": start_date,
                 "end_date": end_date,
@@ -231,11 +236,9 @@ def get_chip_data(stock_id):
             # 自動找欄位
             # =================================================
             possible_cols = [
-                "borrow_balance",
-                "BorrowRemain",
-                "balance",
                 "stock_lending_balance",
                 "lending_balance",
+                "balance",
                 "short_sale_balance"
             ]
             balance_col = None
@@ -252,6 +255,13 @@ def get_chip_data(stock_id):
                 prev_balance = int(
                     prev[balance_col]
                 )
+                # =============================================
+                # 自動判斷股 / 張
+                # =============================================
+                if abs(balance) > 100000:
+                    balance = balance // 1000
+                if abs(prev_balance) > 100000:
+                    prev_balance = prev_balance // 1000
                 borrow_balance = (
                     f"{balance:,} 張"
                 )
