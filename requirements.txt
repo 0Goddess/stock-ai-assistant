@@ -1,9 +1,7 @@
-pandas
 yfinance
-requests
+pandas
 ta
+requests
 gspread
 oauth2client
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
+finmind
