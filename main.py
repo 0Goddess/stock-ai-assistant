@@ -18,8 +18,8 @@ LINE_TOKEN = os.getenv("LINE_TOKEN")
 LINE_API = "https://api.line.me/v2/bot/message/broadcast"
 
 headers = {
-"Content-Type": "application/json",
-"Authorization": f"Bearer {LINE_TOKEN}"
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {LINE_TOKEN}"
 }
 
 # =========================
@@ -34,17 +34,17 @@ api.login_by_token(api_token=FINMIND_TOKEN)
 # Google Sheet
 # =========================
 google_creds = json.loads(
-os.getenv("GOOGLE_CREDENTIALS")
+    os.getenv("GOOGLE_CREDENTIALS")
 )
 
 scope = [
-"https://spreadsheets.google.com/feeds",
-"https://www.googleapis.com/auth/drive"
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
 ]
 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(
-google_creds,
-scope
+    google_creds,
+    scope
 )
 
 client = gspread.authorize(creds)
@@ -83,473 +83,473 @@ def send_line(msg):
 # =========================
 def get_high_low(df, start_date, mode="high"):
 
-if start_date and start_date != "nan":
+    if start_date and start_date != "nan":
 
-filtered = df[df.index >= start_date]
+        filtered = df[df.index >= start_date]
 
-else:
+    else:
 
-filtered = df.tail(250)
+        filtered = df.tail(250)
 
-if filtered.empty:
-filtered = df.tail(250)
+    if filtered.empty:
+        filtered = df.tail(250)
 
-if mode == "high":
+    if mode == "high":
 
-data = filtered["High"]
+        data = filtered["High"]
 
-if isinstance(data, pd.DataFrame):
-data = data.iloc[:, 0]
+        if isinstance(data, pd.DataFrame):
+            data = data.iloc[:, 0]
 
-return float(data.max())
+        return float(data.max())
 
-else:
+    else:
 
-data = filtered["Low"]
+        data = filtered["Low"]
 
-if isinstance(data, pd.DataFrame):
-data = data.iloc[:, 0]
+        if isinstance(data, pd.DataFrame):
+            data = data.iloc[:, 0]
 
-return float(data.min())
+        return float(data.min())
 
 # =========================
 # 籌碼面
 # =========================
 def get_chip_data(stock_id):
 
-try:
+    try:
 
-today = datetime.today()
-start_date = (
-today - timedelta(days=10)
-).strftime("%Y-%m-%d")
+        today = datetime.today()
+        start_date = (
+            today - timedelta(days=10)
+        ).strftime("%Y-%m-%d")
 
-end_date = today.strftime("%Y-%m-%d")
+        end_date = today.strftime("%Y-%m-%d")
 
-# 外資
-foreign_df = api.taiwan_stock_institutional_investors(
-stock_id=stock_id,
-start_date=start_date,
-end_date=end_date
-)
+        # 外資
+        foreign_df = api.taiwan_stock_institutional_investors(
+            stock_id=stock_id,
+            start_date=start_date,
+            end_date=end_date
+        )
 
-foreign_buy = "無資料"
+        foreign_buy = "無資料"
 
-if not foreign_df.empty:
+        if not foreign_df.empty:
 
-foreign_df = foreign_df[
-foreign_df["name"] == "Foreign_Investor"
-]
+            foreign_df = foreign_df[
+                foreign_df["name"] == "Foreign_Investor"
+            ]
 
-if not foreign_df.empty:
+            if not foreign_df.empty:
 
-latest = foreign_df.iloc[-1]
+                latest = foreign_df.iloc[-1]
 
-buy_sell = int(
-latest["buy"] - latest["sell"]
-)
+                buy_sell = int(
+                    latest["buy"] - latest["sell"]
+                )
 
-foreign_buy = f"{buy_sell:+,} 張"
+                foreign_buy = f"{buy_sell:+,} 張"
 
-# 借券
-borrow_df = api.taiwan_stock_borrow_sell(
-stock_id=stock_id,
-start_date=start_date,
-end_date=end_date
-)
+        # 借券
+        borrow_df = api.taiwan_stock_borrow_sell(
+            stock_id=stock_id,
+            start_date=start_date,
+            end_date=end_date
+        )
 
-borrow_balance = "無資料"
-borrow_change = "無資料"
+        borrow_balance = "無資料"
+        borrow_change = "無資料"
 
-if not borrow_df.empty:
+        if not borrow_df.empty:
 
-latest = borrow_df.iloc[-1]
+            latest = borrow_df.iloc[-1]
 
-balance = int(
-latest["BorrowRemain"]
-)
+            balance = int(
+                latest["BorrowRemain"]
+            )
 
-change = int(
-latest["BorrowRemain"]
--
-borrow_df.iloc[-2]["BorrowRemain"]
-)
+            change = int(
+                latest["BorrowRemain"]
+                -
+                borrow_df.iloc[-2]["BorrowRemain"]
+            )
 
-borrow_balance = f"{balance:,} 張"
-borrow_change = f"{change:+,} 張"
+            borrow_balance = f"{balance:,} 張"
+            borrow_change = f"{change:+,} 張"
 
-return (
-foreign_buy,
-borrow_balance,
-borrow_change
-)
+        return (
+            foreign_buy,
+            borrow_balance,
+            borrow_change
+        )
 
-except Exception as e:
+    except Exception as e:
 
-return (
-"無資料",
-"無資料",
-"無資料"
-)
+        return (
+            "無資料",
+            "無資料",
+            "無資料"
+        )
 
 # =========================
 # 技術分析
 # =========================
 def analyze_stock(row):
 
-try:
-
-stock_id = str(row["股票"]).strip()
-stock_name = str(row["名稱"]).strip()
-
-high_date = str(row["前高起算日"]).strip()
-low_date = str(row["前低起算日"]).strip()
-
-# =========================
-# 自動判斷上市 / 上櫃
-# =========================
-ticker_tw = f"{stock_id}.TW"
-ticker_two = f"{stock_id}.TWO"
-
-df = yf.download(
-ticker_tw,
-period="2y",
-progress=False,
-auto_adjust=False
-)
-
-if df.empty:
-
-df = yf.download(
-ticker_two,
-period="2y",
-progress=False,
-auto_adjust=False
-)
-
-if df.empty:
-
-return (
-f"\n====================\n"
-f"【{stock_id} {stock_name}】\n"
-f"====================\n"
-f"抓不到資料\n"
-)
-
-# =========================
-# 修正格式
-# =========================
-close_series = df["Close"]
-if isinstance(close_series, pd.DataFrame):
-close_series = close_series.iloc[:, 0]
-
-volume_series = df["Volume"]
-if isinstance(volume_series, pd.DataFrame):
-volume_series = volume_series.iloc[:, 0]
-
-# =========================
-# 均線
-# =========================
-df["5MA"] = close_series.rolling(5).mean()
-df["20MA"] = close_series.rolling(20).mean()
-df["60MA"] = close_series.rolling(60).mean()
+    try:
+
+        stock_id = str(row["股票"]).strip()
+        stock_name = str(row["名稱"]).strip()
+
+        high_date = str(row["前高起算日"]).strip()
+        low_date = str(row["前低起算日"]).strip()
+
+        # =========================
+        # 自動判斷上市 / 上櫃
+        # =========================
+        ticker_tw = f"{stock_id}.TW"
+        ticker_two = f"{stock_id}.TWO"
+
+        df = yf.download(
+            ticker_tw,
+            period="2y",
+            progress=False,
+            auto_adjust=False
+        )
+
+        if df.empty:
+
+            df = yf.download(
+                ticker_two,
+                period="2y",
+                progress=False,
+                auto_adjust=False
+            )
+
+        if df.empty:
+
+            return (
+                f"\n====================\n"
+                f"【{stock_id} {stock_name}】\n"
+                f"====================\n"
+                f"抓不到資料\n"
+            )
+
+        # =========================
+        # 修正格式
+        # =========================
+        close_series = df["Close"]
+        if isinstance(close_series, pd.DataFrame):
+            close_series = close_series.iloc[:, 0]
+
+        volume_series = df["Volume"]
+        if isinstance(volume_series, pd.DataFrame):
+            volume_series = volume_series.iloc[:, 0]
+
+        # =========================
+        # 均線
+        # =========================
+        df["5MA"] = close_series.rolling(5).mean()
+        df["20MA"] = close_series.rolling(20).mean()
+        df["60MA"] = close_series.rolling(60).mean()
 
-# =========================
-# MACD
-# =========================
-macd = MACD(close=close_series)
-
-df["MACD_HIST"] = macd.macd_diff()
+        # =========================
+        # MACD
+        # =========================
+        macd = MACD(close=close_series)
+
+        df["MACD_HIST"] = macd.macd_diff()
 
-# =========================
-# 最新數據
-# =========================
-close = float(close_series.iloc[-1])
+        # =========================
+        # 最新數據
+        # =========================
+        close = float(close_series.iloc[-1])
 
-ma5 = float(df["5MA"].iloc[-1])
-ma20 = float(df["20MA"].iloc[-1])
-ma60 = float(df["60MA"].iloc[-1])
+        ma5 = float(df["5MA"].iloc[-1])
+        ma20 = float(df["20MA"].iloc[-1])
+        ma60 = float(df["60MA"].iloc[-1])
 
-macd_today = float(df["MACD_HIST"].iloc[-1])
-macd_yesterday = float(df["MACD_HIST"].iloc[-2])
+        macd_today = float(df["MACD_HIST"].iloc[-1])
+        macd_yesterday = float(df["MACD_HIST"].iloc[-2])
 
-volume_today = float(volume_series.iloc[-1])
+        volume_today = float(volume_series.iloc[-1])
 
-# =========================
-# 前高前低
-# =========================
-recent_high = get_high_low(
-df,
-high_date,
-"high"
-)
+        # =========================
+        # 前高前低
+        # =========================
+        recent_high = get_high_low(
+            df,
+            high_date,
+            "high"
+        )
 
-recent_low = get_high_low(
-df,
-low_date,
-"low"
-)
+        recent_low = get_high_low(
+            df,
+            low_date,
+            "low"
+        )
 
-# =========================
-# 區間最大量
-# =========================
-if high_date and high_date != "nan":
+        # =========================
+        # 區間最大量
+        # =========================
+        if high_date and high_date != "nan":
 
-volume_range = df[df.index >= high_date]
+            volume_range = df[df.index >= high_date]
 
-else:
+        else:
 
-volume_range = df.tail(250)
+            volume_range = df.tail(250)
 
-volume_data = volume_range["Volume"]
+        volume_data = volume_range["Volume"]
 
-if isinstance(volume_data, pd.DataFrame):
-volume_data = volume_data.iloc[:, 0]
+        if isinstance(volume_data, pd.DataFrame):
+            volume_data = volume_data.iloc[:, 0]
 
-max_volume = float(volume_data.max())
+        max_volume = float(volume_data.max())
 
-# =========================
-# 開始訊息
-# =========================
-msg = f"\n====================\n"
-msg += f"【{stock_id} {stock_name}】\n"
-msg += "====================\n"
+        # =========================
+        # 開始訊息
+        # =========================
+        msg = f"\n====================\n"
+        msg += f"【{stock_id} {stock_name}】\n"
+        msg += "====================\n"
 
-# =========================
-# 買點分析
-# =========================
-msg += "\n【買點分析】\n"
+        # =========================
+        # 買點分析
+        # =========================
+        msg += "\n【買點分析】\n"
 
-prev_below_60 = (
-close_series.iloc[-4] <
-df["60MA"].iloc[-4]
-)
+        prev_below_60 = (
+            close_series.iloc[-4] <
+            df["60MA"].iloc[-4]
+        )
 
-recent_above_60 = (
-close_series.iloc[-3:] >
-df["60MA"].iloc[-3:]
-).all()
+        recent_above_60 = (
+            close_series.iloc[-3:] >
+            df["60MA"].iloc[-3:]
+        ).all()
 
-if prev_below_60 and recent_above_60:
+        if prev_below_60 and recent_above_60:
 
-msg += "✓ 突破60MA（連3日站上）\n"
+            msg += "✓ 突破60MA（連3日站上）\n"
 
-else:
+        else:
 
-msg += "✗ 尚未完成60MA突破\n"
+            msg += "✗ 尚未完成60MA突破\n"
 
-if (
-close >= recent_high and
-volume_today >= max_volume
-):
+        if (
+            close >= recent_high and
+            volume_today >= max_volume
+        ):
 
-msg += "✓ 量價突破前高\n"
+            msg += "✓ 量價突破前高\n"
 
-else:
+        else:
 
-high_gap = (
-(recent_high - close)
-/ recent_high
-) * 100
+            high_gap = (
+                (recent_high - close)
+                / recent_high
+            ) * 100
 
-msg += (
-f"✗ 未突破前高 "
-f"(差 {high_gap:.2f}%)\n"
-)
+            msg += (
+                f"✗ 未突破前高 "
+                f"(差 {high_gap:.2f}%)\n"
+            )
 
-prev_close = float(close_series.iloc[-2])
+        prev_close = float(close_series.iloc[-2])
 
-if (
-prev_close <= recent_low * 1.02 and
-close > recent_low
-):
+        if (
+            prev_close <= recent_low * 1.02 and
+            close > recent_low
+        ):
 
-msg += "✓ 前低反彈\n"
+            msg += "✓ 前低反彈\n"
 
-else:
+        else:
 
-msg += "✗ 尚未接近前低\n"
+            msg += "✗ 尚未接近前低\n"
 
-if (
-macd_yesterday < 0 and
-macd_today > 0
-):
+        if (
+            macd_yesterday < 0 and
+            macd_today > 0
+        ):
 
-msg += "✓ MACD翻正\n"
+            msg += "✓ MACD翻正\n"
 
-else:
+        else:
 
-msg += (
-f"✗ MACD未翻正 "
-f"({macd_today:.2f})\n"
-)
+            msg += (
+                f"✗ MACD未翻正 "
+                f"({macd_today:.2f})\n"
+            )
 
-# =========================
-# 賣點分析
-# =========================
-msg += "\n【賣點分析】\n"
+        # =========================
+        # 賣點分析
+        # =========================
+        msg += "\n【賣點分析】\n"
 
-bias20 = (
-close / ma20 - 1
-) * 100
+        bias20 = (
+            close / ma20 - 1
+        ) * 100
 
-bias60 = (
-close / ma60 - 1
-) * 100
+        bias60 = (
+            close / ma60 - 1
+        ) * 100
 
-if bias20 >= 30:
+        if bias20 >= 30:
 
-msg += (
-f"⚠ 20MA乖離過大 "
-f"({bias20:.2f}%)\n"
-)
+            msg += (
+                f"⚠ 20MA乖離過大 "
+                f"({bias20:.2f}%)\n"
+            )
 
-else:
+        else:
 
-msg += (
-f"✓ 20MA乖離正常 "
-f"({bias20:.2f}%)\n"
-)
+            msg += (
+                f"✓ 20MA乖離正常 "
+                f"({bias20:.2f}%)\n"
+            )
 
-if bias60 >= 35:
+        if bias60 >= 35:
 
-msg += (
-f"⚠ 60MA乖離過大 "
-f"({bias60:.2f}%)\n"
-)
+            msg += (
+                f"⚠ 60MA乖離過大 "
+                f"({bias60:.2f}%)\n"
+            )
 
-else:
+        else:
 
-msg += (
-f"✓ 60MA乖離正常 "
-f"({bias60:.2f}%)\n"
-)
+            msg += (
+                f"✓ 60MA乖離正常 "
+                f"({bias60:.2f}%)\n"
+            )
 
-five_day_change = (
-close / float(close_series.iloc[-6]) - 1
-) * 100
+        five_day_change = (
+            close / float(close_series.iloc[-6]) - 1
+        ) * 100
 
-if (
-five_day_change > 30 and
-close < ma5
-):
+        if (
+            five_day_change > 30 and
+            close < ma5
+        ):
 
-msg += "⚠ 急漲後跌破5MA\n"
+            msg += "⚠ 急漲後跌破5MA\n"
 
-else:
+        else:
 
-msg += (
-f"✓ 5日漲幅 "
-f"{five_day_change:.2f}%\n"
-)
+            msg += (
+                f"✓ 5日漲幅 "
+                f"{five_day_change:.2f}%\n"
+            )
 
-above20 = (
-close_series.iloc[-23:-3] >
-df["20MA"].iloc[-23:-3]
-).all()
+        above20 = (
+            close_series.iloc[-23:-3] >
+            df["20MA"].iloc[-23:-3]
+        ).all()
 
-below20 = (
-close_series.iloc[-3:] <
-df["20MA"].iloc[-3:]
-).all()
+        below20 = (
+            close_series.iloc[-3:] <
+            df["20MA"].iloc[-3:]
+        ).all()
 
-if above20 and below20:
+        if above20 and below20:
 
-msg += "⚠ 連3日跌破20MA\n"
+            msg += "⚠ 連3日跌破20MA\n"
 
-else:
+        else:
 
-msg += "✓ 尚未跌破20MA\n"
+            msg += "✓ 尚未跌破20MA\n"
 
-if (
-macd_yesterday > 0 and
-macd_today < 0
-):
+        if (
+            macd_yesterday > 0 and
+            macd_today < 0
+        ):
 
-msg += "⚠ MACD轉負\n"
+            msg += "⚠ MACD轉負\n"
 
-else:
+        else:
 
-msg += (
-f"✓ MACD維持 "
-f"({macd_today:.2f})\n"
-)
+            msg += (
+                f"✓ MACD維持 "
+                f"({macd_today:.2f})\n"
+            )
 
-# =========================
-# 籌碼面
-# =========================
-msg += "\n【籌碼面】\n"
+        # =========================
+        # 籌碼面
+        # =========================
+        msg += "\n【籌碼面】\n"
 
-foreign_buy, borrow_balance, borrow_change = get_chip_data(stock_id)
+        foreign_buy, borrow_balance, borrow_change = get_chip_data(stock_id)
 
-msg += f"外資買賣超：{foreign_buy}\n"
-msg += f"借券餘額：{borrow_balance}\n"
-msg += f"借券增減：{borrow_change}\n"
+        msg += f"外資買賣超：{foreign_buy}\n"
+        msg += f"借券餘額：{borrow_balance}\n"
+        msg += f"借券增減：{borrow_change}\n"
 
-# =========================
-# AI總結
-# =========================
-msg += "\n【總結】\n"
+        # =========================
+        # AI總結
+        # =========================
+        msg += "\n【總結】\n"
 
-if (
-prev_below_60 and recent_above_60 and
-macd_yesterday < 0 and
-macd_today > 0
-):
+        if (
+            prev_below_60 and recent_above_60 and
+            macd_yesterday < 0 and
+            macd_today > 0
+        ):
 
-msg += (
-"短線轉強，\n"
-"可觀察是否續攻前高。\n"
-)
+            msg += (
+                "短線轉強，\n"
+                "可觀察是否續攻前高。\n"
+            )
 
-elif (
-close >= recent_high * 0.95
-):
+        elif (
+            close >= recent_high * 0.95
+        ):
 
-msg += (
-"接近關鍵前高，\n"
-"若量能放大，\n"
-"有機會突破。\n"
-)
+            msg += (
+                "接近關鍵前高，\n"
+                "若量能放大，\n"
+                "有機會突破。\n"
+            )
 
-elif (
-bias20 >= 30 or
-bias60 >= 35
-):
+        elif (
+            bias20 >= 30 or
+            bias60 >= 35
+        ):
 
-msg += (
-"短線乖離偏大，\n"
-"留意獲利了結賣壓。\n"
-)
+            msg += (
+                "短線乖離偏大，\n"
+                "留意獲利了結賣壓。\n"
+            )
 
-elif (
-(macd_yesterday > 0 and macd_today < 0)
-or
-(above20 and below20)
-):
+        elif (
+            (macd_yesterday > 0 and macd_today < 0)
+            or
+            (above20 and below20)
+        ):
 
-msg += (
-"技術面轉弱，\n"
-"留意後續修正風險。\n"
-)
+            msg += (
+                "技術面轉弱，\n"
+                "留意後續修正風險。\n"
+            )
 
-else:
+        else:
 
-msg += (
-"目前仍處整理階段，\n"
-"建議持續觀察。\n"
-)
+            msg += (
+                "目前仍處整理階段，\n"
+                "建議持續觀察。\n"
+            )
 
-return msg
+        return msg
 
-except Exception as e:
+    except Exception as e:
 
-return (
-f"\n====================\n"
-f"【{stock_id} {stock_name}】\n"
-f"====================\n"
-f"分析失敗：{str(e)}\n"
-)
+        return (
+            f"\n====================\n"
+            f"【{stock_id} {stock_name}】\n"
+            f"====================\n"
+            f"分析失敗：{str(e)}\n"
+        )
 
 # =========================
 # 主程式
@@ -560,12 +560,12 @@ all_msg = f"📊 台股監控 {date_str}\n"
 
 for row in data:
 
-if str(row["啟用"]).upper() != "Y":
-continue
+    if str(row["啟用"]).upper() != "Y":
+        continue
 
-result = analyze_stock(row)
+    result = analyze_stock(row)
 
-all_msg += result
+    all_msg += result
 
 # =========================
 # 發送 LINE
