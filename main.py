@@ -117,136 +117,115 @@ def get_chip_data(stock_id):
     import os
     import requests
     import pandas as pd
+    from datetime import datetime
 
     token = os.getenv("FINMIND_TOKEN")
 
     url = "https://api.finmindtrade.com/api/v4/data"
 
-    # =========================
-    # 全自動診斷 + fallback 系統
-    # =========================
-    def fetch(dataset):
-        try:
-            r = requests.get(url, params={
-                "dataset": dataset,
-                "data_id": stock_id,
-                "start_date": "2024-01-01",
-                "end_date": "2026-12-31",
-                "token": token
-            }, timeout=10)
+    today = datetime.today().strftime("%Y-%m-%d")
 
-            js = r.json()
-
-            # API 失敗檢查
-            if js.get("status") != 200:
-                print(f"[ERROR] {dataset} API failed:", js)
-                return pd.DataFrame(), js
-
-            data = js.get("data", [])
-            df = pd.DataFrame(data)
-
-            print(f"[INFO] {dataset} rows={len(df)} msg={js.get('msg')}")
-
-            return df, js
-
-        except Exception as e:
-            print(f"[EXCEPTION] {dataset}:", e)
-            return pd.DataFrame(), {"error": str(e)}
-
-    # =========================
-    # 外資資料（自動嘗試多種 name pattern）
-    # =========================
-    fdf, fjs = fetch("TaiwanStockInstitutionalInvestorsBuySell")
-
+    # =========================================================
+    # 外資（今日張數）
+    # =========================================================
     foreign_buy = "無資料"
 
-    if not fdf.empty and "name" in fdf.columns:
+    try:
 
-        name_candidates = [
-            "外資及陸資",
-            "外資",
-            "Foreign",
-            "Foreign Investor"
-        ]
+        res = requests.get(url, params={
+            "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
+            "data_id": stock_id,
+            "start_date": today,
+            "end_date": today,
+            "token": token
+        }, timeout=10)
 
-        fdf2 = pd.DataFrame()
+        js = res.json()
 
-        for n in name_candidates:
-            tmp = fdf[fdf["name"].str.contains(n, na=False)]
-            if not tmp.empty:
-                fdf2 = tmp
-                break
+        df = pd.DataFrame(js.get("data", []))
 
-        if not fdf2.empty:
+        if not df.empty:
 
-            latest_date = fdf2["date"].max()
-            d = fdf2[fdf2["date"] == latest_date]
+            # 真正外資
+            df = df[
+                df["name"].astype(str).str.contains(
+                    "外資及陸資",
+                    na=False
+                )
+            ]
 
-            if "buy" in d.columns and "sell" in d.columns:
-                net = int(d["buy"].sum() - d["sell"].sum())
-                foreign_buy = f"{net:+,} 張"
+            if not df.empty:
 
-    # =========================
-    # 借券（自動 fallback dataset）
-    # =========================
-    borrow_datasets = [
-        "TaiwanStockSecuritiesLending",
-        "TaiwanStockMarginPurchaseShortSale"
-    ]
+                latest = df.iloc[-1]
 
-    bdf = pd.DataFrame()
-    borrow_source = None
+                # FinMind 是「股數」→ 轉張數
+                buy = int(latest.get("buy", 0)) // 1000
+                sell = int(latest.get("sell", 0)) // 1000
 
-    for ds in borrow_datasets:
-        tmp, js = fetch(ds)
-        if not tmp.empty:
-            bdf = tmp
-            borrow_source = ds
-            break
+                foreign_buy = f"{buy - sell:+,} 張"
 
+    except Exception as e:
+        print("外資錯誤:", e)
+
+    # =========================================================
+    # 借券（今日張數）
+    # =========================================================
     borrow_balance = "無資料"
     borrow_change = "無資料"
 
-    if not bdf.empty:
+    try:
 
-        bdf = bdf.sort_values("date")
+        res = requests.get(url, params={
+            "dataset": "TaiwanStockSecuritiesLending",
+            "data_id": stock_id,
+            "start_date": today,
+            "end_date": today,
+            "token": token
+        }, timeout=10)
 
-        # 欄位自動偵測
-        col_candidates = [
-            "stock_lending_balance",
-            "short_sale_balance",
-            "lending_balance",
-            "balance"
-        ]
+        js = res.json()
 
-        col = None
-        for c in col_candidates:
-            if c in bdf.columns:
-                col = c
-                break
+        print("借券API:", js)
 
-        if col:
+        df = pd.DataFrame(js.get("data", []))
 
-            latest = bdf.iloc[-1]
-            prev = bdf.iloc[-2] if len(bdf) > 1 else latest
+        if not df.empty:
 
-            latest_v = int(latest[col])
-            prev_v = int(prev[col])
+            latest = df.iloc[-1]
 
-            borrow_balance = f"{latest_v:,} 張"
-            borrow_change = f"{latest_v - prev_v:+,} 張"
+            # 借券餘額（股 → 張）
+            balance_cols = [
+                "stock_lending_balance",
+                "lending_balance",
+                "balance"
+            ]
 
-        else:
-            print("[WARN] borrow dataset found but no usable column:", borrow_source)
+            for col in balance_cols:
 
-    # =========================
-    # 最終保護輸出
-    # =========================
-    if foreign_buy == "無資料":
-        print("[WARN] Foreign empty:", fjs)
+                if col in df.columns:
 
-    if borrow_balance == "無資料":
-        print("[WARN] Borrow empty or no dataset worked")
+                    borrow_balance = f"{int(latest[col]) // 1000:,} 張"
+                    break
+
+            # 借券增減（股 → 張）
+            change_cols = [
+                "stock_lending_change",
+                "lending_change",
+                "change"
+            ]
+
+            for col in change_cols:
+
+                if col in df.columns:
+
+                    borrow_change = f"{int(latest[col]) // 1000:+,} 張"
+                    break
+
+            if borrow_change == "無資料":
+                borrow_change = "0 張"
+
+    except Exception as e:
+        print("借券錯誤:", e)
 
     return foreign_buy, borrow_balance, borrow_change
 # =========================
