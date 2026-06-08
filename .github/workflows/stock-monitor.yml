@@ -12,6 +12,7 @@ jobs:
     env:
       LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
