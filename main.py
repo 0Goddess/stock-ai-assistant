@@ -25,6 +25,7 @@ headers = {
 # FinMind Token
 # =========================
 FINMIND_TOKEN = os.getenv("FINMIND_TOKEN")
+print("FINMIND_TOKEN =", FINMIND_TOKEN)
 
 # =========================
 # Google Sheet
