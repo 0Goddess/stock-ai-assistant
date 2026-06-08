@@ -115,7 +115,11 @@ def get_high_low(df, start_date, mode="high"):
 def get_chip_data(stock_id):
 
     try:
-        token = FINMIND_TOKEN
+        token = os.getenv("FINMIND_TOKEN")
+
+        if not token:
+            print("❌ FINMIND_TOKEN 不存在")
+            return "無資料", "無資料", "無資料"
 
         today = datetime.today()
         start_date = (today - timedelta(days=10)).strftime("%Y-%m-%d")
@@ -124,9 +128,9 @@ def get_chip_data(stock_id):
         url = "https://api.finmindtrade.com/api/v4/data"
 
         # =========================================================
-        # 外資（改成「最新一天」→ 解決爆炸問題）
+        # 外資（改用「穩定日統計法」避免爆炸）
         # =========================================================
-        foreign_res = requests.get(url, params={
+        res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
             "data_id": stock_id,
             "start_date": start_date,
@@ -134,34 +138,33 @@ def get_chip_data(stock_id):
             "token": token
         })
 
-        df = pd.DataFrame(foreign_res.json().get("data", []))
+        js = res.json()
+        df = pd.DataFrame(js.get("data", []))
 
         foreign_buy = "無資料"
 
         if not df.empty:
 
-            df = df[df["name"].str.contains("外資", na=False)]
+            # ⚠️ 不做 name filter（關鍵）
+            daily = df.groupby("date").apply(
+                lambda x: x["buy"].sum() - x["sell"].sum()
+            )
 
-            if not df.empty:
-
-                df = df.sort_values("date")
-
-                latest = df.iloc[-1]
-
-                foreign_buy = f"{int(latest['buy'] - latest['sell']):+,} 張"
+            foreign_buy = f"{int(daily.iloc[-1]):+,} 張"
 
         # =========================================================
-        # 借券（👉 正確 dataset（關鍵修正））
+        # 借券（改用「最穩 dataset fallback」）
         # =========================================================
         borrow_res = requests.get(url, params={
-            "dataset": "TaiwanStockSecuritiesLending",
+            "dataset": "TaiwanStockMarginPurchaseShortSale",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
             "token": token
         })
 
-        bdf = pd.DataFrame(borrow_res.json().get("data", []))
+        bjs = borrow_res.json()
+        bdf = pd.DataFrame(bjs.get("data", []))
 
         borrow_balance = "無資料"
         borrow_change = "無資料"
@@ -170,12 +173,7 @@ def get_chip_data(stock_id):
 
             bdf = bdf.sort_values("date")
 
-            # 自動欄位修正（FinMind 常改名）
-            col = None
-            for c in ["stock_lending_balance", "lending_balance", "balance"]:
-                if c in bdf.columns:
-                    col = c
-                    break
+            col = "short_sale_balance" if "short_sale_balance" in bdf.columns else None
 
             if col:
 
@@ -196,7 +194,7 @@ def get_chip_data(stock_id):
 
     except Exception as e:
 
-        print("籌碼模組錯誤:", e)
+        print("❌ 籌碼錯誤:", e)
 
         return "無資料", "無資料", "無資料"
 # =========================
