@@ -114,81 +114,141 @@ def get_high_low(df, start_date, mode="high"):
 # =========================
 def get_chip_data(stock_id):
 
-    try:
-        import os
-        import requests
-        import pandas as pd
+    import os
+    import requests
+    import pandas as pd
 
-        token = os.getenv("FINMIND_TOKEN")
+    token = os.getenv("FINMIND_TOKEN")
 
-        url = "https://api.finmindtrade.com/api/v4/data"
+    url = "https://api.finmindtrade.com/api/v4/data"
 
-        # =========================
-        # 最終修正：不再用 borrowing / lending dataset（你環境就是拿不到）
-        # 改用「FinMind 保證有資料的兩個來源」
-        # =========================
+    # =========================
+    # 全自動診斷 + fallback 系統
+    # =========================
+    def fetch(dataset):
+        try:
+            r = requests.get(url, params={
+                "dataset": dataset,
+                "data_id": stock_id,
+                "start_date": "2024-01-01",
+                "end_date": "2026-12-31",
+                "token": token
+            }, timeout=10)
 
-        # =========================================================
-        # 外資：用日資料 + 正確拆 "外資及陸資"
-        # =========================================================
-        foreign = requests.get(url, params={
-            "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
-            "data_id": stock_id,
-            "start_date": "2024-01-01",
-            "end_date": "2026-12-31",
-            "token": token
-        }).json()
+            js = r.json()
 
-        fdf = pd.DataFrame(foreign.get("data", []))
+            # API 失敗檢查
+            if js.get("status") != 200:
+                print(f"[ERROR] {dataset} API failed:", js)
+                return pd.DataFrame(), js
 
-        foreign_buy = "無資料"
+            data = js.get("data", [])
+            df = pd.DataFrame(data)
 
-        if not fdf.empty:
+            print(f"[INFO] {dataset} rows={len(df)} msg={js.get('msg')}")
 
-            # FinMind 真正名稱（最關鍵修正）
-            fdf = fdf[fdf["name"].str.contains("外資及陸資", na=False)]
+            return df, js
 
-            if not fdf.empty:
+        except Exception as e:
+            print(f"[EXCEPTION] {dataset}:", e)
+            return pd.DataFrame(), {"error": str(e)}
 
-                latest_date = fdf["date"].max()
-                today_df = fdf[fdf["date"] == latest_date]
+    # =========================
+    # 外資資料（自動嘗試多種 name pattern）
+    # =========================
+    fdf, fjs = fetch("TaiwanStockInstitutionalInvestorsBuySell")
 
-                net = int(today_df["buy"].sum() - today_df["sell"].sum())
+    foreign_buy = "無資料"
 
+    if not fdf.empty and "name" in fdf.columns:
+
+        name_candidates = [
+            "外資及陸資",
+            "外資",
+            "Foreign",
+            "Foreign Investor"
+        ]
+
+        fdf2 = pd.DataFrame()
+
+        for n in name_candidates:
+            tmp = fdf[fdf["name"].str.contains(n, na=False)]
+            if not tmp.empty:
+                fdf2 = tmp
+                break
+
+        if not fdf2.empty:
+
+            latest_date = fdf2["date"].max()
+            d = fdf2[fdf2["date"] == latest_date]
+
+            if "buy" in d.columns and "sell" in d.columns:
+                net = int(d["buy"].sum() - d["sell"].sum())
                 foreign_buy = f"{net:+,} 張"
 
-        # =========================================================
-        # 借券：改用「融資融券」(100%有資料)
-        # =========================================================
-        margin = requests.get(url, params={
-            "dataset": "TaiwanStockMarginPurchaseShortSale",
-            "data_id": stock_id,
-            "start_date": "2024-01-01",
-            "end_date": "2026-12-31",
-            "token": token
-        }).json()
+    # =========================
+    # 借券（自動 fallback dataset）
+    # =========================
+    borrow_datasets = [
+        "TaiwanStockSecuritiesLending",
+        "TaiwanStockMarginPurchaseShortSale"
+    ]
 
-        mdf = pd.DataFrame(margin.get("data", []))
+    bdf = pd.DataFrame()
+    borrow_source = None
 
-        borrow_balance = "無資料"
-        borrow_change = "無資料"
+    for ds in borrow_datasets:
+        tmp, js = fetch(ds)
+        if not tmp.empty:
+            bdf = tmp
+            borrow_source = ds
+            break
 
-        if not mdf.empty:
+    borrow_balance = "無資料"
+    borrow_change = "無資料"
 
-            mdf = mdf.sort_values("date")
+    if not bdf.empty:
 
-            latest = mdf.iloc[-1]
-            prev = mdf.iloc[-2] if len(mdf) > 1 else latest
+        bdf = bdf.sort_values("date")
 
-            if "short_sale_balance" in mdf.columns:
+        # 欄位自動偵測
+        col_candidates = [
+            "stock_lending_balance",
+            "short_sale_balance",
+            "lending_balance",
+            "balance"
+        ]
 
-                borrow_balance = f"{int(latest['short_sale_balance']):,} 張"
-                borrow_change = f"{int(latest['short_sale_balance']) - int(prev['short_sale_balance']):+,} 張"
+        col = None
+        for c in col_candidates:
+            if c in bdf.columns:
+                col = c
+                break
 
-        return foreign_buy, borrow_balance, borrow_change
+        if col:
 
-    except:
-        return "無資料", "無資料", "無資料"
+            latest = bdf.iloc[-1]
+            prev = bdf.iloc[-2] if len(bdf) > 1 else latest
+
+            latest_v = int(latest[col])
+            prev_v = int(prev[col])
+
+            borrow_balance = f"{latest_v:,} 張"
+            borrow_change = f"{latest_v - prev_v:+,} 張"
+
+        else:
+            print("[WARN] borrow dataset found but no usable column:", borrow_source)
+
+    # =========================
+    # 最終保護輸出
+    # =========================
+    if foreign_buy == "無資料":
+        print("[WARN] Foreign empty:", fjs)
+
+    if borrow_balance == "無資料":
+        print("[WARN] Borrow empty or no dataset worked")
+
+    return foreign_buy, borrow_balance, borrow_change
 # =========================
 # 技術分析
 # =========================
