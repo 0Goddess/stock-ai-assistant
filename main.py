@@ -122,14 +122,17 @@ def get_chip_data(stock_id):
 
         token = os.getenv("FINMIND_TOKEN")
 
-        today = datetime.today().strftime("%Y-%m-%d")
-        start_date = today
-        end_date = today
-
         url = "https://api.finmindtrade.com/api/v4/data"
 
         # =========================
-        # 外資（只取「本日」）
+        # 用「最近2天」避免當日資料延遲
+        # =========================
+        today = datetime.today()
+        start_date = (today - timedelta(days=5)).strftime("%Y-%m-%d")
+        end_date = today.strftime("%Y-%m-%d")
+
+        # =========================
+        # 外資（取最新一筆 = 本日）
         # =========================
         foreign_res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
@@ -139,27 +142,26 @@ def get_chip_data(stock_id):
             "token": token
         })
 
-        foreign_df = pd.DataFrame(foreign_res.json().get("data", []))
+        fdf = pd.DataFrame(foreign_res.json().get("data", []))
 
         foreign_buy = "無資料"
 
-        if not foreign_df.empty:
+        if not fdf.empty:
 
-            foreign_today = foreign_df[
-                foreign_df["name"].str.contains("外資", na=False)
-            ]
+            # 只取外資（避免三大法人混雜）
+            fdf = fdf[fdf["name"].str.contains("外資", na=False)]
 
-            if not foreign_today.empty:
+            if not fdf.empty:
 
-                foreign_buy = int(
-                    foreign_today["buy"].sum()
-                    - foreign_today["sell"].sum()
-                )
+                latest_date = fdf["date"].max()
+                today_df = fdf[fdf["date"] == latest_date]
 
-                foreign_buy = f"{foreign_buy:+,} 張"
+                if not today_df.empty:
+                    net = today_df["buy"].sum() - today_df["sell"].sum()
+                    foreign_buy = f"{int(net):+,} 張"
 
         # =========================
-        # 借券（只取「本日」）
+        # 借券（正確 dataset + 最新日）
         # =========================
         borrow_res = requests.get(url, params={
             "dataset": "TaiwanStockSecuritiesLending",
@@ -178,17 +180,20 @@ def get_chip_data(stock_id):
 
             bdf = bdf.sort_values("date")
 
-            latest = bdf.iloc[-1]
+            latest_date = bdf["date"].max()
+            today_df = bdf[bdf["date"] == latest_date]
 
             col = None
             for c in ["stock_lending_balance", "lending_balance", "balance"]:
-                if c in bdf.columns:
+                if c in today_df.columns:
                     col = c
                     break
 
-            if col:
+            if col and not today_df.empty:
 
-                borrow_balance = f"{int(latest[col]):,} 張"
+                balance = int(today_df[col].iloc[0])
+
+                borrow_balance = f"{balance:,} 張"
                 borrow_change = "0 張"
 
         return foreign_buy, borrow_balance, borrow_change
