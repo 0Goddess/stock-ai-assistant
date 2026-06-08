@@ -60,23 +60,23 @@ data = sheet.get_all_records()
 # =========================
 def send_line(msg):
 
-payload = {
-"messages": [
-{
-"type": "text",
-"text": msg[:5000]
-}
-]
-}
+    payload = {
+        "messages": [
+            {
+                "type": "text",
+                "text": msg[:5000]
+            }
+        ]
+    }
 
-response = requests.post(
-LINE_API,
-headers=headers,
-json=payload
-)
+    response = requests.post(
+        LINE_API,
+        headers=headers,
+        json=payload
+    )
 
-print(response.status_code)
-print(response.text)
+    print(response.status_code)
+    print(response.text)
 
 # =========================
 # 前高前低
