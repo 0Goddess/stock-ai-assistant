@@ -115,22 +115,23 @@ def get_high_low(df, start_date, mode="high"):
 def get_chip_data(stock_id):
 
     try:
+        import os
+        import requests
+        import pandas as pd
+        from datetime import datetime, timedelta
+
         token = os.getenv("FINMIND_TOKEN")
 
-        if not token:
-            print("❌ FINMIND_TOKEN 不存在")
-            return "無資料", "無資料", "無資料"
-
-        today = datetime.today()
-        start_date = (today - timedelta(days=10)).strftime("%Y-%m-%d")
-        end_date = today.strftime("%Y-%m-%d")
+        today = datetime.today().strftime("%Y-%m-%d")
+        start_date = today
+        end_date = today
 
         url = "https://api.finmindtrade.com/api/v4/data"
 
-        # =========================================================
-        # 外資（改用「穩定日統計法」避免爆炸）
-        # =========================================================
-        res = requests.get(url, params={
+        # =========================
+        # 外資（只取「本日」）
+        # =========================
+        foreign_res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
             "data_id": stock_id,
             "start_date": start_date,
@@ -138,33 +139,37 @@ def get_chip_data(stock_id):
             "token": token
         })
 
-        js = res.json()
-        df = pd.DataFrame(js.get("data", []))
+        foreign_df = pd.DataFrame(foreign_res.json().get("data", []))
 
         foreign_buy = "無資料"
 
-        if not df.empty:
+        if not foreign_df.empty:
 
-            # ⚠️ 不做 name filter（關鍵）
-            daily = df.groupby("date").apply(
-                lambda x: x["buy"].sum() - x["sell"].sum()
-            )
+            foreign_today = foreign_df[
+                foreign_df["name"].str.contains("外資", na=False)
+            ]
 
-            foreign_buy = f"{int(daily.iloc[-1]):+,} 張"
+            if not foreign_today.empty:
 
-        # =========================================================
-        # 借券（改用「最穩 dataset fallback」）
-        # =========================================================
+                foreign_buy = int(
+                    foreign_today["buy"].sum()
+                    - foreign_today["sell"].sum()
+                )
+
+                foreign_buy = f"{foreign_buy:+,} 張"
+
+        # =========================
+        # 借券（只取「本日」）
+        # =========================
         borrow_res = requests.get(url, params={
-            "dataset": "TaiwanStockMarginPurchaseShortSale",
+            "dataset": "TaiwanStockSecuritiesLending",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
             "token": token
         })
 
-        bjs = borrow_res.json()
-        bdf = pd.DataFrame(bjs.get("data", []))
+        bdf = pd.DataFrame(borrow_res.json().get("data", []))
 
         borrow_balance = "無資料"
         borrow_change = "無資料"
@@ -173,29 +178,22 @@ def get_chip_data(stock_id):
 
             bdf = bdf.sort_values("date")
 
-            col = "short_sale_balance" if "short_sale_balance" in bdf.columns else None
+            latest = bdf.iloc[-1]
+
+            col = None
+            for c in ["stock_lending_balance", "lending_balance", "balance"]:
+                if c in bdf.columns:
+                    col = c
+                    break
 
             if col:
 
-                latest = bdf.iloc[-1]
-
-                balance = int(latest[col])
-
-                if len(bdf) >= 2:
-                    prev = bdf.iloc[-2]
-                    change = balance - int(prev[col])
-                else:
-                    change = 0
-
-                borrow_balance = f"{balance:,} 張"
-                borrow_change = f"{change:+,} 張"
+                borrow_balance = f"{int(latest[col]):,} 張"
+                borrow_change = "0 張"
 
         return foreign_buy, borrow_balance, borrow_change
 
-    except Exception as e:
-
-        print("❌ 籌碼錯誤:", e)
-
+    except:
         return "無資料", "無資料", "無資料"
 # =========================
 # 技術分析
