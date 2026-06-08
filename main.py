@@ -121,12 +121,12 @@ def get_chip_data(stock_id):
         start_date = (today - timedelta(days=20)).strftime("%Y-%m-%d")
         end_date = today.strftime("%Y-%m-%d")
 
-        # =========================
-        # 外資買賣超（只取外資）
-        # =========================
         url = "https://api.finmindtrade.com/api/v4/data"
 
-        params = {
+        # =========================
+        # 外資（不再依賴 name）
+        # =========================
+        foreign_params = {
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
             "data_id": stock_id,
             "start_date": start_date,
@@ -134,52 +134,37 @@ def get_chip_data(stock_id):
             "token": token
         }
 
-        res = requests.get(url, params=params)
-        js = res.json()
+        foreign_res = requests.get(url, params=foreign_params)
+        foreign_js = foreign_res.json()
 
-        print("外資原始回傳:", js)
+        print("外資原始回傳:", foreign_js)
 
-        df = pd.DataFrame(js.get("data", []))
+        foreign_df = pd.DataFrame(foreign_js.get("data", []))
 
         foreign_buy = "無資料"
 
-        if not df.empty:
+        if not foreign_df.empty:
 
-            # 只取 Foreign（兼容不同命名）
-            foreign_df = df[df["name"].str.contains(
-                "Foreign|外資",
-                case=False,
-                na=False
-            )]
-
-            if not foreign_df.empty:
-
-                buy_sell = (
-                    foreign_df["buy"].sum()
-                    - foreign_df["sell"].sum()
-                )
-
-                foreign_buy = f"{int(buy_sell):+,} 張"
+            # 直接用加總（最穩）
+            foreign_buy = f"{int(foreign_df['buy'].sum() - foreign_df['sell'].sum()):+,} 張"
 
         # =========================
-        # 借券
+        # 借券（穩定 dataset）
         # =========================
-        borrow_url = "https://api.finmindtrade.com/api/v4/data"
-
-        params = {
-            "dataset": "TaiwanStockBorrowBuySell",
+        borrow_params = {
+            "dataset": "TaiwanStockMarginPurchaseShortSale",
             "data_id": stock_id,
             "start_date": start_date,
             "end_date": end_date,
             "token": token
         }
 
-        res = requests.get(borrow_url, params=params)
-        js = res.json()
+        borrow_res = requests.get(url, params=borrow_params)
+        borrow_js = borrow_res.json()
 
-        print("借券原始回傳:", js)
+        print("借券原始回傳:", borrow_js)
 
-        borrow_df = pd.DataFrame(js.get("data", []))
+        borrow_df = pd.DataFrame(borrow_js.get("data", []))
 
         borrow_balance = "無資料"
         borrow_change = "無資料"
@@ -190,11 +175,14 @@ def get_chip_data(stock_id):
 
             latest = borrow_df.iloc[-1]
 
-            balance = int(latest.get("borrow_balance", 0))
+            balance = int(latest.get("short_sale_balance", 0))
 
             if len(borrow_df) >= 2:
+
                 prev = borrow_df.iloc[-2]
-                change = balance - int(prev.get("borrow_balance", 0))
+
+                change = balance - int(prev.get("short_sale_balance", 0))
+
             else:
                 change = 0
 
