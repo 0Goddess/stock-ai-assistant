@@ -756,10 +756,5 @@ except Exception as e:
 # =========================
 # 發送 LINE
 # =========================
-try:
+send_line(all_msg)
 
-    send_line(all_msg)
-
-except Exception as e:
-
-    print("LINE發送失敗:", e)
