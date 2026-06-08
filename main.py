@@ -118,13 +118,13 @@ def get_chip_data(stock_id):
         token = FINMIND_TOKEN
 
         today = datetime.today()
-        start_date = (today - timedelta(days=20)).strftime("%Y-%m-%d")
+        start_date = (today - timedelta(days=10)).strftime("%Y-%m-%d")
         end_date = today.strftime("%Y-%m-%d")
 
         url = "https://api.finmindtrade.com/api/v4/data"
 
         # =========================================================
-        # 外資（正確：直接用 buy - sell，不做 name filter）
+        # 外資（改成「最新一天」→ 解決爆炸問題）
         # =========================================================
         foreign_res = requests.get(url, params={
             "dataset": "TaiwanStockInstitutionalInvestorsBuySell",
@@ -134,19 +134,24 @@ def get_chip_data(stock_id):
             "token": token
         })
 
-        foreign_df = pd.DataFrame(foreign_res.json().get("data", []))
+        df = pd.DataFrame(foreign_res.json().get("data", []))
 
         foreign_buy = "無資料"
 
-        if not foreign_df.empty:
+        if not df.empty:
 
-            # 直接加總（避免 name 欄位錯誤）
-            net = foreign_df["buy"].sum() - foreign_df["sell"].sum()
+            df = df[df["name"].str.contains("外資", na=False)]
 
-            foreign_buy = f"{int(net):+,} 張"
+            if not df.empty:
+
+                df = df.sort_values("date")
+
+                latest = df.iloc[-1]
+
+                foreign_buy = f"{int(latest['buy'] - latest['sell']):+,} 張"
 
         # =========================================================
-        # 借券（改用穩定 dataset）
+        # 借券（👉 正確 dataset（關鍵修正））
         # =========================================================
         borrow_res = requests.get(url, params={
             "dataset": "TaiwanStockSecuritiesLending",
@@ -156,29 +161,30 @@ def get_chip_data(stock_id):
             "token": token
         })
 
-        borrow_df = pd.DataFrame(borrow_res.json().get("data", []))
+        bdf = pd.DataFrame(borrow_res.json().get("data", []))
 
         borrow_balance = "無資料"
         borrow_change = "無資料"
 
-        if not borrow_df.empty:
+        if not bdf.empty:
 
-            borrow_df = borrow_df.sort_values("date")
+            bdf = bdf.sort_values("date")
 
-            # 自動找可用欄位（防 dataset 欄位變動）
+            # 自動欄位修正（FinMind 常改名）
             col = None
             for c in ["stock_lending_balance", "lending_balance", "balance"]:
-                if c in borrow_df.columns:
+                if c in bdf.columns:
                     col = c
                     break
 
             if col:
 
-                latest = borrow_df.iloc[-1]
+                latest = bdf.iloc[-1]
+
                 balance = int(latest[col])
 
-                if len(borrow_df) >= 2:
-                    prev = borrow_df.iloc[-2]
+                if len(bdf) >= 2:
+                    prev = bdf.iloc[-2]
                     change = balance - int(prev[col])
                 else:
                     change = 0
