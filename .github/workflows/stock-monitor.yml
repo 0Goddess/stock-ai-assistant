@@ -1,48 +1,37 @@
 name: Stock Monitor
+
 on:
   schedule:
-    # 台灣時間 15:00
-    - cron: '0 7 * * 1-5'
     # 台灣時間 22:00
+    # GitHub Actions 使用 UTC，所以 22:00 - 8 小時 = 14:00 UTC
     - cron: '0 14 * * 1-5'
+
   workflow_dispatch:
+
 jobs:
   run-stock-bot:
+
     runs-on: ubuntu-latest
+
     env:
       LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+
     steps:
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install Packages
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Test FinMind API
-        run: |
-         python -c "
-         import os, requests
 
-         token = os.getenv('FINMIND_TOKEN')
-
-         r = requests.get(
-             'https://api.finmindtrade.com/api/v4/data',
-             headers={'token': token},
-             params={
-                 'dataset': 'TaiwanStockPrice',
-                 'data_id': '2330',
-                 'start_date': '2024-01-01'
-             }
-         )
-
-         print(r.status_code)
-         print(r.text[:200])
-         "
       - name: Run Bot
         run: python main.py
