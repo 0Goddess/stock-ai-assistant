@@ -90,28 +90,11 @@ def analyze_stock(row):
         low_date = str(row["前低起算日"]).strip()
 
         # =========================
-        # 自動判斷上市 / 上櫃
+        # 抓股價資料
         # =========================
-        ticker_tw = f"{stock_id}.TW"
-        ticker_two = f"{stock_id}.TWO"
+        df = get_stock_price_data(stock_id)
 
-        df = yf.download(
-            ticker_tw,
-            period="2y",
-            progress=False,
-            auto_adjust=False
-        )
-
-        if df.empty:
-
-            df = yf.download(
-                ticker_two,
-                period="2y",
-                progress=False,
-                auto_adjust=False
-            )
-
-        if df.empty:
+        if df is None:
 
             return (
                 f"\n====================\n"
@@ -126,26 +109,14 @@ def analyze_stock(row):
         close_series = df["Close"]
 
         if isinstance(close_series, pd.DataFrame):
+
             close_series = close_series.iloc[:, 0]
 
         volume_series = df["Volume"]
 
         if isinstance(volume_series, pd.DataFrame):
+
             volume_series = volume_series.iloc[:, 0]
-
-        # =========================
-        # 均線
-        # =========================
-        df["5MA"] = close_series.rolling(5).mean()
-        df["20MA"] = close_series.rolling(20).mean()
-        df["60MA"] = close_series.rolling(60).mean()
-
-        # =========================
-        # MACD
-        # =========================
-        macd = MACD(close=close_series)
-
-        df["MACD_HIST"] = macd.macd_diff()
 
         # =========================
         # 最新數據
