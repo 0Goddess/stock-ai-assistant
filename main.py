@@ -87,18 +87,11 @@ for row in data:
         all_msg += result
 
     except Exception as e:
-
         all_msg += (
             f"\n【系統錯誤】\n"
             f"{stock_id} "
             f"{str(e)}\n"
         )
-
-        all_msg += (
-        f"\n【系統錯誤】\n"
-        f"{row['股票']} "
-        f"{str(e)}\n"
-    )
 
 # =========================
 # 發送 LINE
