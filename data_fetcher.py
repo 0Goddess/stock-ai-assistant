@@ -48,9 +48,6 @@ def get_chip_data(stock_id):
         datetime.today() - timedelta(days=7)
     ).strftime("%Y-%m-%d")
 
-    # =========================================================
-    # 外資
-    # =========================================================
     foreign_buy = "無資料"
 
     try:
@@ -68,7 +65,6 @@ def get_chip_data(stock_id):
         )
 
         js = res.json()
-
         df = pd.DataFrame(js.get("data", []))
 
         if not df.empty:
@@ -97,14 +93,9 @@ def get_chip_data(stock_id):
             if not foreign_df.empty:
 
                 foreign_df = foreign_df.sort_values("date")
-
                 latest_value = None
 
-                for i in range(
-                    len(foreign_df) - 1,
-                    -1,
-                    -1
-                ):
+                for i in range(len(foreign_df) - 1, -1, -1):
 
                     row = foreign_df.iloc[i]
 
@@ -125,9 +116,6 @@ def get_chip_data(stock_id):
     except Exception as e:
         print("外資錯誤:", e)
 
-    # =========================================================
-    # 借券賣出
-    # =========================================================
     borrow_balance = "無資料"
     borrow_change = "無資料"
 
@@ -146,7 +134,6 @@ def get_chip_data(stock_id):
         )
 
         js = res.json()
-
         df = pd.DataFrame(js.get("data", []))
 
         if not df.empty:
@@ -209,20 +196,18 @@ def get_stock_price_data(stock_id):
 
     if df.empty:
         return None
-    # 清除空值資料
+
     df = df.dropna(
-       subset=[
-           "Close",
-           "High",
-           "Low",
-           "Volume"
-      ]
-   )
+        subset=[
+            "Close",
+            "High",
+            "Low",
+            "Volume"
+        ]
+    )
 
-if df.empty:
-    return None
-
-close_series = df["Close"]
+    if df.empty:
+        return None
 
     close_series = df["Close"]
 
