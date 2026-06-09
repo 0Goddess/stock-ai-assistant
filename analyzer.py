@@ -277,11 +277,94 @@ def analyze_stock(row):
             get_chip_data(stock_id)
         )
 
+        # =========================================================
+        # 籌碼面分析
+        # =========================================================
+        foreign_text = ""
+        foreign_ratio_text = ""
+
+        try:
+            foreign_value = int(
+                foreign_buy
+                .replace(" 張", "")
+                .replace(",", "")
+                .replace("+", "")
+            )
+
+            volume_today_lot = int(volume_today) // 1000
+
+            if volume_today_lot > 0:
+                foreign_ratio = abs(foreign_value) / volume_today_lot * 100
+            else:
+                foreign_ratio = 0
+
+            if foreign_value >= 1000:
+                foreign_text = f"✓ 外資明顯買超：{foreign_buy}"
+            elif foreign_value > 0:
+                foreign_text = f"△ 外資小幅買超：{foreign_buy}"
+            elif foreign_value <= -1000:
+                foreign_text = f"⚠ 外資明顯賣超：{foreign_buy}"
+            elif foreign_value < 0:
+                foreign_text = f"△ 外資小幅賣超：{foreign_buy}"
+            else:
+                foreign_text = f"△ 外資無明顯方向：{foreign_buy}"
+
+            if foreign_ratio >= 10:
+                foreign_ratio_text = f"✓ 外資影響力強（占成交量 {foreign_ratio:.1f}%）"
+            elif foreign_ratio >= 3:
+                if foreign_value >= 0:
+                    foreign_ratio_text = f"△ 外資偏多（占成交量 {foreign_ratio:.1f}%）"
+                else:
+                    foreign_ratio_text = f"△ 外資偏空（占成交量 {foreign_ratio:.1f}%）"
+            else:
+                foreign_ratio_text = f"△ 外資影響有限（占成交量 {foreign_ratio:.1f}%）"
+
+        except Exception:
+            foreign_text = f"外資買賣超：{foreign_buy}"
+            foreign_ratio_text = "外資影響力：無法計算"
+
+        borrow_text = ""
+
+        try:
+            borrow_balance_num = int(
+                borrow_balance
+                .replace(" 張", "")
+                .replace(",", "")
+            )
+
+            borrow_change_num = int(
+                borrow_change
+                .replace(" 張", "")
+                .replace(",", "")
+                .replace("+", "")
+            )
+
+            prev_borrow_balance = borrow_balance_num - borrow_change_num
+
+            if prev_borrow_balance > 0:
+                borrow_ratio = borrow_change_num / prev_borrow_balance * 100
+            else:
+                borrow_ratio = 0
+
+            if borrow_ratio >= 10:
+                borrow_text = f"⚠ 借券賣出大增（{borrow_ratio:.1f}%）"
+            elif borrow_ratio >= 3:
+                borrow_text = f"△ 借券賣出增加（{borrow_ratio:.1f}%）"
+            elif borrow_ratio <= -3:
+                borrow_text = f"✓ 借券賣出減少（{borrow_ratio:.1f}%）"
+            else:
+                borrow_text = f"△ 借券賣出變化正常（{borrow_ratio:.1f}%）"
+
+        except Exception:
+            borrow_text = "借券資料不足"
+
         msg += (
             f"\n【籌碼面】\n"
-            f"外資買賣超：{foreign_buy}\n"
+            f"{foreign_text}\n"
+            f"{foreign_ratio_text}\n\n"
             f"借券賣出餘額：{borrow_balance}\n"
             f"借券賣出增減：{borrow_change}\n"
+            f"{borrow_text}\n"
         )
 
         # =========================================================
