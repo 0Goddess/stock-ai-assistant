@@ -7,48 +7,20 @@ import yfinance as yf
 import pandas as pd
 import gspread
 
+from config import (
+    LINE_TOKEN,
+    LINE_API,
+    SHEET_ID
+)
+
 from ta.trend import MACD
 from datetime import datetime, timedelta
 from oauth2client.service_account import ServiceAccountCredentials
-
-# =========================
-# LINE
-# =========================
-LINE_TOKEN = os.getenv("LINE_TOKEN")
-
-LINE_API = "https://api.line.me/v2/bot/message/broadcast"
 
 headers = {
     "Content-Type": "application/json",
     "Authorization": f"Bearer {LINE_TOKEN}"
 }
-
-# =========================
-# FinMind Token
-# =========================
-FINMIND_TOKEN = os.getenv("FINMIND_TOKEN")
-print("FINMIND_TOKEN =", FINMIND_TOKEN)
-
-# =========================
-# Google Sheet
-# =========================
-google_creds = json.loads(
-    os.getenv("GOOGLE_CREDENTIALS")
-)
-
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
-
-creds = ServiceAccountCredentials.from_json_keyfile_dict(
-    google_creds,
-    scope
-)
-
-client = gspread.authorize(creds)
-
-SHEET_ID = "1gshq5BLEC5dsB8wzvjGNbwvqkO6ETTcQEQJm3S1Q9tk"
 
 sheet = client.open_by_key(SHEET_ID).worksheet("stocks")
 
