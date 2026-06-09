@@ -1,6 +1,7 @@
 import os
 import requests
 import yfinance as yf
+from config import FINMIND_TOKEN
 import pandas as pd
 
 from ta.trend import MACD
@@ -45,8 +46,6 @@ def get_high_low(df, start_date, mode="high"):
 # =========================================================
 def get_chip_data(stock_id):
 
-    token = os.getenv("FINMIND_TOKEN")
-
     url = "https://api.finmindtrade.com/api/v4/data"
 
     # =========================================================
@@ -72,7 +71,7 @@ def get_chip_data(stock_id):
                 "data_id": str(stock_id),
                 "start_date": start_date,
                 "end_date": end_date,
-                "token": token
+                "token": FINMIND_TOKEN
             },
             timeout=20
         )
