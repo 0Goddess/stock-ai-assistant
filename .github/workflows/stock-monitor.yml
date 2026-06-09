@@ -2,12 +2,10 @@ name: Stock Monitor
 
 on:
   schedule:
-    # 台灣時間 22:00
-    # GitHub Actions 使用 UTC，所以 22:00 - 8 小時 = 14:00 UTC
-    - cron: '0 14 * * 1-5'
+    # 台灣時間約 21:00，避免 GitHub Actions 延遲到太晚
+    - cron: '0 13 * * 1-5'
 
   workflow_dispatch:
-
 jobs:
   run-stock-bot:
 
