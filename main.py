@@ -1,11 +1,10 @@
-from analyzer import analyze_stock
-from data_fetcher import ( get_high_low, get_chip_data, get_stock_price_data )
 import os
 import json
 import requests
-import yfinance as yf
-import pandas as pd
 import gspread
+
+from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 
 from config import (
     LINE_TOKEN,
@@ -13,14 +12,28 @@ from config import (
     SHEET_ID
 )
 
-from ta.trend import MACD
-from datetime import datetime, timedelta
-from oauth2client.service_account import ServiceAccountCredentials
+from analyzer import analyze_stock
 
 headers = {
     "Content-Type": "application/json",
     "Authorization": f"Bearer {LINE_TOKEN}"
 }
+
+google_creds = json.loads(
+    os.getenv("GOOGLE_CREDENTIALS")
+)
+
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+
+creds = ServiceAccountCredentials.from_json_keyfile_dict(
+    google_creds,
+    scope
+)
+
+client = gspread.authorize(creds)
 
 sheet = client.open_by_key(SHEET_ID).worksheet("stocks")
 
