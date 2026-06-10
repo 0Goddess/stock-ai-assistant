@@ -197,17 +197,13 @@ def get_stock_price_data(stock_id):
     if df.empty:
         return None
 
-    df = df.dropna(
-        subset=[
-            "Close",
-            "High",
-            "Low",
-            "Volume"
-        ]
-    )
+try:
+    df = df.dropna()
+except Exception as e:
+    print("清除空值錯誤:", e)
 
-    if df.empty:
-        return None
+if df.empty:
+    return None
 
     close_series = df["Close"]
 
